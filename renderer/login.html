@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vperts Multi — Entrar</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap');
+  :root{
+    --bg:#0a0605; --surface-2:#1e1210; --line:rgba(216,138,74,.18); --line-strong:rgba(229,179,79,.4);
+    --red:#c33629; --red-2:#e24b35; --gold:#e5b34f; --gold-soft:#d98350; --cream:#f7eee7;
+    --muted:#b5a196; --faint:#7d6d64; --good:#4fc47a; --bad:#ff6b55;
+    --ease:cubic-bezier(.22,.7,.2,1);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;color:var(--cream);font-family:Inter,system-ui,sans-serif;
+    background:radial-gradient(120% 90% at 50% 0%, #24120c 0%, #0a0605 62%)}
+  .wrap{height:100%;display:flex;align-items:center;justify-content:center;padding:20px}
+  .card{width:340px;max-width:92vw;background:linear-gradient(180deg,#160d0a,#0d0806);
+    border:1px solid var(--line-strong);border-radius:18px;padding:26px 22px;
+    box-shadow:0 24px 60px rgba(0,0,0,.6)}
+  .brand{text-align:center;margin-bottom:20px}
+  .brand img{width:66px;height:66px;border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.5),0 0 0 1px var(--line-strong)}
+  .brand .word{font-family:Cinzel,serif;font-weight:900;font-size:20px;margin-top:12px;
+    background:linear-gradient(180deg,#ff6a4d,#b32418);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .brand small{display:block;color:var(--faint);font-size:10px;letter-spacing:.2em;text-transform:uppercase;margin-top:5px}
+  label{display:block;color:var(--gold-soft);font-size:11px;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;margin:14px 0 6px}
+  input{width:100%;background:#110a08;border:1px solid var(--line);border-radius:11px;padding:11px 12px;
+    color:var(--cream);font:500 14px Inter,sans-serif;outline:none;transition:.14s}
+  input:focus{border-color:var(--gold)}
+  .btn{width:100%;margin-top:18px;border:0;border-radius:12px;padding:12px;cursor:pointer;
+    font:700 14px Inter,sans-serif;color:#1a0b07;background:linear-gradient(180deg,#f0c266,#d1912f);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 8px 22px rgba(229,179,79,.18);transition:.14s var(--ease)}
+  .btn:hover{filter:brightness(1.06);transform:translateY(-1px)}
+  .btn:disabled{opacity:.5;cursor:wait;transform:none}
+  .btn.ghost{margin-top:10px;background:transparent;color:var(--gold-soft);border:1px solid var(--line);
+    box-shadow:none;font-weight:600}
+  .btn.ghost:hover{border-color:var(--gold);color:var(--gold)}
+  .msg{min-height:18px;margin-top:12px;font-size:12.5px;text-align:center;color:var(--muted)}
+  .msg.err{color:var(--bad)} .msg.ok{color:var(--good)}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="brand">
+        <img src="logo-vp.png" alt="VP" />
+        <div class="word">VPERTS MULTI</div>
+        <small>multi-conta · poke idle world</small>
+      </div>
+      <label>E-mail</label>
+      <input id="email" type="email" placeholder="seu@email.com" autocomplete="username" />
+      <label>Senha</label>
+      <input id="pass" type="password" placeholder="••••••••" autocomplete="current-password" />
+      <button class="btn" id="entrar">Entrar</button>
+      <button class="btn ghost" id="criar">Criar conta</button>
+      <div class="msg" id="msg"></div>
+    </div>
+  </div>
+<script>
+  const $ = (s) => document.querySelector(s)
+  const msg = (t, cls) => { const m = $('#msg'); m.textContent = t; m.className = 'msg ' + (cls || '') }
+  const creds = () => ({ e: $('#email').value.trim(), p: $('#pass').value })
+
+  $('#entrar').onclick = async () => {
+    const { e, p } = creds()
+    if (!e || !p) return msg('Preencha e-mail e senha.', 'err')
+    $('#entrar').disabled = true; msg('Entrando…')
+    const r = await window.ml.login(e, p)
+    if (r && r.error) { msg(r.error, 'err'); $('#entrar').disabled = false }
+    // sucesso: o app troca de tela sozinho
+  }
+  $('#criar').onclick = async () => {
+    const { e, p } = creds()
+    if (!e || !p) return msg('Preencha e-mail e senha pra criar a conta.', 'err')
+    if (p.length < 6) return msg('A senha precisa de pelo menos 6 caracteres.', 'err')
+    $('#criar').disabled = true; msg('Criando conta…')
+    const r = await window.ml.signup(e, p)
+    $('#criar').disabled = false
+    if (r && r.error) return msg(r.error, 'err')
+    if (r && r.needConfirm) return msg('Conta criada! Confirme pelo e-mail e depois entre.', 'ok')
+    msg('Conta criada! Agora clique em Entrar.', 'ok')
+  }
+  $('#pass').addEventListener('keydown', e => { if (e.key === 'Enter') $('#entrar').click() })
+</script>
+</body>
+</html>
