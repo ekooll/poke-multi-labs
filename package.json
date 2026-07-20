@@ -1,0 +1,46 @@
+{
+  "name": "poke-multi-labs",
+  "version": "0.2.0",
+  "description": "Painel multi-conta para o Poke Idle World — até 4 contas do jogo (Chrome real, login Google funciona) encaixadas em uma janela, com sidebar de controle.",
+  "main": "host-main.js",
+  "scripts": {
+    "start": "electron .",
+    "host": "electron host-main.js",
+    "launch": "node launcher.js",
+    "dist": "electron-builder --win"
+  },
+  "author": "VpersLAB",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "ws": "^8.21.1"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.vperslab.pokemultilabs",
+    "productName": "Poke Multi-Labs",
+    "files": [
+      "host-main.js",
+      "host-preload.js",
+      "launcher.js",
+      "win32.ps1",
+      "popupwatch.ps1",
+      "config.js",
+      "renderer/**/*"
+    ],
+    "asarUnpack": [
+      "win32.ps1",
+      "popupwatch.ps1"
+    ],
+    "win": {
+      "target": [
+        "portable",
+        "nsis"
+      ],
+      "signAndEditExecutable": false
+    }
+  }
+}

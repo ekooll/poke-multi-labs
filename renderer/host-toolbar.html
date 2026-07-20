@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Poke Multi-Labs</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+  /* ---- Paleta oficial VP Store ---- */
+  :root{
+    --bg:#0a0605; --surface:#150d0b; --surface-2:#1e1210;
+    --line:rgba(216,138,74,.18); --line-strong:rgba(229,179,79,.4);
+    --red:#c33629; --red-2:#e24b35; --gold:#e5b34f; --gold-soft:#d98350;
+    --cream:#f7eee7; --muted:#b5a196; --faint:#7d6d64;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--cream);overflow:hidden;
+    font-family:Inter,system-ui,-apple-system,sans-serif}
+  .side{width:184px;height:100%;padding:14px 12px;display:flex;flex-direction:column;gap:16px;
+    background:linear-gradient(180deg,#150d0b,#0a0605);border-right:1px solid var(--line);
+    transition:width .15s ease, padding .15s ease}
+  .head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+  .brand{font-family:Cinzel,serif;font-weight:800;font-size:16px;line-height:1.05;
+    background:linear-gradient(90deg,var(--gold),var(--gold-soft));-webkit-background-clip:text;
+    background-clip:text;color:transparent;letter-spacing:.4px}
+  .brand small{display:block;font-family:Inter,sans-serif;color:var(--faint);font-weight:600;
+    font-size:10px;margin-top:4px;-webkit-text-fill-color:var(--faint);letter-spacing:.3px}
+  .toggle{flex:none;width:26px;height:26px;padding:0;background:var(--surface-2);color:var(--gold-soft);
+    border:1px solid var(--line);border-radius:8px;cursor:pointer;font-size:12px;line-height:1;
+    display:flex;align-items:center;justify-content:center;transition:.14s}
+  .toggle:hover{border-color:var(--line-strong);color:var(--gold)}
+  .content{display:flex;flex-direction:column;gap:16px;flex:1;min-height:0}
+  .grp{display:flex;flex-direction:column;gap:7px}
+  .lbl{color:var(--gold-soft);font-size:10.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+  .rowbtns{display:flex;gap:6px}
+  .rowbtns.col{flex-direction:column}
+  button{background:var(--surface-2);color:var(--cream);border:1px solid var(--line);border-radius:10px;
+    padding:8px 0;font:600 13px Inter,sans-serif;cursor:pointer;transition:.14s;flex:1}
+  button:hover{border-color:var(--line-strong);color:var(--gold)}
+  button:active{transform:translateY(1px)}
+  button.on{background:linear-gradient(180deg,#3a2016,#2a1610);color:var(--gold);
+    border-color:var(--gold);box-shadow:0 0 0 1px rgba(229,179,79,.25) inset}
+  .col button{text-align:left;padding:9px 11px}
+  .acct{display:flex;flex-direction:column;gap:6px;overflow:auto}
+  .acct button{text-align:left;padding:9px 11px}
+  .acct button.on{background:linear-gradient(180deg,#4a1c17,#33130f);color:var(--cream);
+    border-color:var(--red);box-shadow:0 0 0 1px rgba(195,54,41,.35) inset}
+  .foot{margin-top:auto;color:var(--faint);font-size:10.5px;line-height:1.5;
+    border-top:1px solid var(--line);padding-top:10px}
+  .foot b{color:var(--gold-soft);font-weight:700}
+  ::-webkit-scrollbar{width:7px}
+  ::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:6px}
+  /* ---- estado recolhido ---- */
+  body.collapsed .side{width:34px;padding:12px 4px;gap:0;align-items:center}
+  body.collapsed .content{display:none}
+  body.collapsed .brand{display:none}
+  body.collapsed .head{justify-content:center}
+</style>
+</head>
+<body>
+  <div class="side">
+    <div class="head">
+      <div class="brand">Poke Multi-Labs<small>VP · multi-conta</small></div>
+      <button class="toggle" id="toggle" title="Recolher">◀</button>
+    </div>
+
+    <div class="content">
+      <div class="grp">
+        <span class="lbl">Telas</span>
+        <div class="rowbtns" id="seg-n">
+          <button data-n="1">1</button>
+          <button data-n="2">2</button>
+          <button data-n="3">3</button>
+          <button data-n="4">4</button>
+        </div>
+      </div>
+
+      <div class="grp">
+        <span class="lbl">Layout</span>
+        <div class="rowbtns col" id="seg-mode">
+          <button data-m="grid">▦ Grade</button>
+          <button data-m="rows">▤ Horizontal</button>
+          <button data-m="columns">▥ Vertical</button>
+        </div>
+      </div>
+
+      <div class="grp" style="flex:1;min-height:0">
+        <span class="lbl">Contas</span>
+        <div class="acct" id="accts"></div>
+      </div>
+
+      <div class="foot" id="foot">—</div>
+    </div>
+  </div>
+
+<script>
+  const $ = (s) => document.querySelector(s)
+  let collapsed = false
+
+  function renderAccts (state) {
+    const box = $('#accts'); box.innerHTML = ''
+    const all = document.createElement('button')
+    all.textContent = '▦ Todas'; all.className = state.solo === -1 ? 'on' : ''
+    all.onclick = () => window.ml.setSolo(-1)
+    box.appendChild(all)
+    for (let i = 0; i < state.count; i++) {
+      const b = document.createElement('button')
+      b.textContent = 'Conta ' + (i + 1)
+      b.className = state.solo === i ? 'on' : ''
+      b.onclick = () => window.ml.setSolo(i)
+      box.appendChild(b)
+    }
+  }
+
+  function render (s) {
+    document.querySelectorAll('#seg-n button').forEach(b => b.classList.toggle('on', +b.dataset.n === s.count))
+    document.querySelectorAll('#seg-mode button').forEach(b => b.classList.toggle('on', b.dataset.m === s.mode))
+    renderAccts(s)
+    $('#foot').innerHTML = '<b>' + s.embedded + '/' + s.count + '</b> encaixadas' + (s.solo >= 0 ? ' · foco Conta ' + (s.solo + 1) : '')
+  }
+
+  window.ml.onState(render)
+  window.ml.getState().then(s => { if (s) render(s) })
+
+  $('#toggle').onclick = () => {
+    collapsed = !collapsed
+    document.body.classList.toggle('collapsed', collapsed)
+    $('#toggle').textContent = collapsed ? '▶' : '◀'
+    $('#toggle').title = collapsed ? 'Expandir' : 'Recolher'
+    window.ml.setSidebar(collapsed)
+  }
+
+  document.querySelectorAll('#seg-n button').forEach(b =>
+    b.onclick = () => { $('#foot').textContent = 'abrindo ' + b.dataset.n + '…'; window.ml.relaunch(parseInt(b.dataset.n, 10)) })
+  document.querySelectorAll('#seg-mode button').forEach(b =>
+    b.onclick = () => window.ml.setLayout(b.dataset.m))
+</script>
+</body>
+</html>
