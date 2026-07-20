@@ -1,6 +1,6 @@
 {
   "name": "poke-multi-labs",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Painel multi-conta para o Poke Idle World — até 4 contas do jogo (Chrome real, login Google funciona) encaixadas em uma janela, com sidebar de controle.",
   "main": "host-main.js",
   "scripts": {

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>…</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;
+    background:radial-gradient(120% 90% at 0% 0%, #1b0f0b 0%, #0a0605 62%);
+    display:flex;align-items:center;justify-content:center;
+    -webkit-user-select:none;user-select:none;cursor:default}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:14px}
+  img{width:58px;height:58px;border-radius:14px;
+    box-shadow:0 8px 22px rgba(0,0,0,.5),0 0 0 1px rgba(229,179,79,.35);
+    animation:breathe 1.15s ease-in-out infinite}
+  .dots{display:flex;gap:6px}
+  .dots i{width:6px;height:6px;border-radius:50%;background:#d98350;opacity:.4;
+    animation:blink 1.15s ease-in-out infinite}
+  .dots i:nth-child(2){animation-delay:.18s}
+  .dots i:nth-child(3){animation-delay:.36s}
+  @keyframes breathe{0%,100%{opacity:.5;transform:scale(.96)}50%{opacity:.92;transform:scale(1)}}
+  @keyframes blink{0%,100%{opacity:.25}50%{opacity:.9}}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <img src="logo-vp.png" alt="" />
+    <div class="dots"><i></i><i></i><i></i></div>
+  </div>
+</body>
+</html>

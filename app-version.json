@@ -1,6 +1,6 @@
 {
-  "version": "0.4.0",
-  "notes": "Foco-ao-clicar (digita em qualquer conta), abre maximizada, loot no rail, rename corrigido, perfil+sorteio, atalho via .bat no zip.",
+  "version": "0.4.1",
+  "notes": "Transicoes suaves: cortina tematica com fade nas trocas de tela e na abertura de contas (espera o jogo pintar via CDP, sem flash branco).",
   "files": [
     "host-main.js",
     "host-preload.js",
@@ -11,6 +11,7 @@
     "focuswatch.ps1",
     "renderer/host-toolbar.html",
     "renderer/login.html",
-    "renderer/loot.html"
+    "renderer/loot.html",
+    "renderer/curtain.html"
   ]
 }

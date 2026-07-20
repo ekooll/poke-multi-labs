@@ -19,7 +19,7 @@ const cdp = require('./cdp.js')
 const DEBUG_PORT_BASE = 9333
 // auto-update: baixa SO os arquivos do app (uns ~100KB) do GitHub, sem rebaixar o Electron
 const REPO_RAW = 'https://raw.githubusercontent.com/ekooll/poke-multi-labs/main'
-const APP_FILES = ['host-main.js', 'host-preload.js', 'config.js', 'cdp.js', 'win32.ps1', 'popupwatch.ps1', 'focuswatch.ps1', 'renderer/host-toolbar.html', 'renderer/login.html', 'renderer/loot.html']
+const APP_FILES = ['host-main.js', 'host-preload.js', 'config.js', 'cdp.js', 'win32.ps1', 'popupwatch.ps1', 'focuswatch.ps1', 'renderer/host-toolbar.html', 'renderer/login.html', 'renderer/loot.html', 'renderer/curtain.html']
 
 const SIDEBAR_W = 206           // DIP (aberta) — bate com .side no CSS
 const SIDEBAR_W_COLLAPSED = 56  // DIP (recolhida) — bate com body.collapsed .side
@@ -28,6 +28,7 @@ let sidebarCollapsed = false
 
 let win = null
 let lootWin = null           // janela flutuante do Hunt Analyzer (soma de loot)
+let overlayWin = null        // "cortina" de transicao (cobre a area do jogo no fade)
 let slots = []               // [{ profile, hwnd(str|null) }] em ordem conta-1..N
 let layoutMode = 'grid'      // 'grid' | 'columns' | 'rows'
 let solo = -1
@@ -242,21 +243,38 @@ async function setCount (target) {
   try {
     target = clampN(target)
     fs.mkdirSync(profilesDir, { recursive: true })
-    while (slots.length < target) await addAccount()
-    while (slots.length > target) await closeAccountAt(slots.length - 1)
+    await withCurtain(async () => {
+      while (slots.length < target) await addAccount()
+      while (slots.length > target) await closeAccountAt(slots.length - 1)
+      const s = slots[slots.length - 1]
+      if (s && s.port && slots.length) await cdp.waitReady(s.port, 3500)
+    }, { inMs: 120, outMs: 280 })
   } catch (e) { dlog('!! setCount ERRO ' + e.message + ' | ' + (e.stack || '')) } finally { busy = false }
 }
 
-async function publicAdd () { if (busy || !win) return; busy = true; try { await addAccount() } catch (e) { dlog('!! add ' + e.message) } finally { busy = false } }
-async function publicClose (idx) { if (busy || !win) return; busy = true; try { await closeAccountAt(idx) } catch (e) { dlog('!! close ' + e.message) } finally { busy = false } }
+async function publicAdd () {
+  if (busy || !win) return; busy = true
+  try {
+    await withCurtain(async () => {
+      await addAccount()
+      const s = slots[slots.length - 1]                 // conta recem-aberta
+      if (s && s.port) await cdp.waitReady(s.port, 3500) // segura a cortina ate o jogo pintar (sem flash branco)
+    }, { inMs: 120, outMs: 280 })
+  } catch (e) { dlog('!! add ' + e.message) } finally { busy = false }
+}
+async function publicClose (idx) {
+  if (busy || !win) return; busy = true
+  try { await withCurtain(() => closeAccountAt(idx), { inMs: 60, outMs: 200 }) } catch (e) { dlog('!! close ' + e.message) } finally { busy = false }
+}
 
 // ---- atalhos globais (funcionam mesmo com o foco dentro do Chrome encaixado) ----
 // Ctrl+1..4 = foca a conta pelo NUMERO (nao pelo indice) · Ctrl+0 = todas · F11 = tela cheia
 function focusByNum (n) {
   if (!win) return
-  if (n === 0) { solo = -1 }
-  else { const idx = slots.findIndex(s => s.num === n); if (idx < 0) return; solo = idx }
-  applyLayout(); pushState()
+  let target
+  if (n === 0) target = -1
+  else { const idx = slots.findIndex(s => s.num === n); if (idx < 0) return; target = idx }
+  withCurtain(() => { solo = target; return applyLayout() }, { inMs: 40, outMs: 190 }).then(() => pushState())
 }
 function registerShortcuts () {
   try {
@@ -267,6 +285,60 @@ function registerShortcuts () {
   } catch (e) { dlog('!! registerShortcuts ' + e.message) }
 }
 function unregisterShortcuts () { try { globalShortcut.unregisterAll() } catch {} }
+
+// ================= TRANSICOES SUAVES (cortina + fade) =================
+// Um overlay tematico cobre a AREA DO JOGO durante a troca/abertura e some com
+// fade, revelando o layout ja assentado. Nao toca no render do Chrome (a cortina
+// e uma janela nossa por cima). setOpacity anima o fade.
+function ensureOverlay () {
+  if (overlayWin && !overlayWin.isDestroyed()) return overlayWin
+  overlayWin = new BrowserWindow({
+    parent: win, frame: false, resizable: false, movable: false, skipTaskbar: true,
+    focusable: false, show: false, hasShadow: false, alwaysOnTop: true, backgroundColor: '#0a0605',
+    webPreferences: { contextIsolation: true, nodeIntegration: false }
+  })
+  overlayWin.setAlwaysOnTop(true, 'screen-saver')
+  overlayWin.setIgnoreMouseEvents(true)
+  overlayWin.loadFile(path.join(__dirname, 'renderer', 'curtain.html'))
+  overlayWin.on('closed', () => { overlayWin = null })
+  return overlayWin
+}
+function positionOverlay () {
+  if (!win || !overlayWin) return
+  const b = win.getContentBounds()
+  const left = sidebarCollapsed ? SIDEBAR_W_COLLAPSED : SIDEBAR_W
+  overlayWin.setBounds({ x: b.x + left, y: b.y + TOP_H, width: Math.max(1, b.width - left), height: Math.max(1, b.height - TOP_H) })
+}
+function fadeWin (w, from, to, ms) {
+  return new Promise(resolve => {
+    const steps = Math.max(1, Math.round(ms / 16))
+    let i = 0
+    try { w.setOpacity(from) } catch {}
+    const t = setInterval(() => {
+      i++
+      const v = from + (to - from) * (i / steps)
+      try { w.setOpacity(v) } catch {}
+      if (i >= steps) { clearInterval(t); resolve() }
+    }, 16)
+  })
+}
+// mostra a cortina (fade-in rapido), roda fn (reparent/layout) atras, some com fade
+let curtainBusy = false
+async function withCurtain (fn, opts) {
+  if (!win || curtainBusy) return fn()   // transicao ja rolando -> faz direto (sem sobrepor cortinas)
+  curtainBusy = true
+  const ov = ensureOverlay()
+  const o = opts || {}
+  try {
+    positionOverlay()
+    try { ov.setOpacity(0); ov.showInactive() } catch {}
+    await fadeWin(ov, 0, 1, o.inMs != null ? o.inMs : 90)
+    await fn()
+    positionOverlay()
+    await fadeWin(ov, 1, 0, o.outMs != null ? o.outMs : 240)
+  } catch (e) { dlog('!! withCurtain ' + e.message); try { await fn() } catch {} }
+  finally { try { ov.hide(); ov.setOpacity(1) } catch {} curtainBusy = false }
+}
 
 function scheduleRelayout () { clearTimeout(relayoutTimer); relayoutTimer = setTimeout(applyLayout, 180) }
 
@@ -346,6 +418,7 @@ async function enterApp (token, email) {
   dlog('enterApp email=' + email + ' telas=' + licensedTelas + ' lic=' + JSON.stringify(lic))
   win.loadFile(path.join(__dirname, 'renderer', 'host-toolbar.html'))
   win.webContents.once('did-finish-load', async () => {
+    ensureOverlay()   // pre-aquece a cortina (curtain.html carregado antes da 1a transicao)
     await setCount(1); startPopupWatch(); registerShortcuts(); startFocusWatch()
     if (process.env.PMLABS_SELFTEST) runSelfTest()
   })
@@ -374,8 +447,8 @@ function createWindow () {
 ipcMain.handle('relaunch', async (_e, n) => { await setCount(n); return slots.length })
 ipcMain.handle('add-account', async () => { await publicAdd(); return slots.length })
 ipcMain.handle('close-account', async (_e, idx) => { await publicClose(idx); return slots.length })
-ipcMain.on('set-layout', (_e, m) => { if (['grid', 'columns', 'rows'].includes(m)) { layoutMode = m; applyLayout() } })
-ipcMain.on('set-solo', (_e, idx) => { solo = (idx == null ? -1 : idx); applyLayout() })
+ipcMain.on('set-layout', (_e, m) => { if (['grid', 'columns', 'rows'].includes(m)) withCurtain(() => { layoutMode = m; return applyLayout() }, { inMs: 40, outMs: 190 }) })
+ipcMain.on('set-solo', (_e, idx) => { withCurtain(() => { solo = (idx == null ? -1 : idx); return applyLayout() }, { inMs: 40, outMs: 190 }) })
 ipcMain.on('set-sidebar', (_e, collapsed) => { sidebarCollapsed = !!collapsed; applyLayout() })
 ipcMain.handle('get-state', () => ({ count: slots.length, embedded: currentHwnds().length, mode: layoutMode, solo, maxTelas: licensedTelas, email: authEmail }))
 
@@ -475,7 +548,7 @@ ipcMain.handle('login', async (_e, email, password) => {
 ipcMain.handle('signup', async (_e, email, password) => doSignup(email, password))
 ipcMain.handle('logout', async () => {
   clearSession(); licensedTelas = 1; authEmail = null
-  stopPopupWatch(); stopFocusWatch(); unregisterShortcuts(); try { lootWin && lootWin.close() } catch {} killAll()
+  stopPopupWatch(); stopFocusWatch(); unregisterShortcuts(); try { lootWin && lootWin.close() } catch {} try { overlayWin && overlayWin.close() } catch {} killAll()
   win.loadFile(path.join(__dirname, 'renderer', 'login.html'))
   return true
 })

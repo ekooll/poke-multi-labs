@@ -20,6 +20,7 @@ cp host-main.js host-preload.js config.js cdp.js win32.ps1 popupwatch.ps1 focusw
 cp renderer/host-toolbar.html "$STAGE/resources/app/renderer/"
 cp renderer/login.html "$STAGE/resources/app/renderer/"
 cp renderer/loot.html "$STAGE/resources/app/renderer/"
+cp renderer/curtain.html "$STAGE/resources/app/renderer/"
 cp renderer/logo-vp.png "$STAGE/resources/app/renderer/"
 [ -f renderer/logo-vp.ico ] && cp renderer/logo-vp.ico "$STAGE/resources/app/renderer/"
 
@@ -28,7 +29,7 @@ mkdir -p "$STAGE/resources/app/node_modules"
 cp -r node_modules/ws "$STAGE/resources/app/node_modules/ws"
 
 cat > "$STAGE/resources/app/package.json" <<'JSON'
-{ "name": "poke-multi-labs", "version": "0.4.0", "main": "host-main.js" }
+{ "name": "poke-multi-labs", "version": "0.4.1", "main": "host-main.js" }
 JSON
 
 echo ">> criando o .bat de atalho (self-locating; vai junto no zip, ao lado do exe)"

@@ -50,6 +50,22 @@ const LOOT_EXPR = "(()=>{try{" +
   "const t=document.body.innerText||'';const all=[...t.matchAll(/\\$\\s*([\\d.]{1,15})/g)].map(x=>parseInt(x[1].replace(/\\./g,''),10)).filter(n=>!isNaN(n));" +
   "return all.length?Math.max(...all):null}catch(e){return null}})()"
 
+// espera a pagina do jogo terminar de carregar (pra revelar sem flash branco)
+async function waitReady (port, timeout = 4000) {
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    try {
+      const ws = await getPageWs(port)
+      if (ws) {
+        const st = await evaluate(ws, 'document.readyState', 1200)
+        if (st === 'complete') return true
+      }
+    } catch {}
+    await new Promise(r => setTimeout(r, 180))
+  }
+  return false
+}
+
 async function readLoot (port) {
   try {
     const wsUrl = await getPageWs(port)
@@ -58,4 +74,4 @@ async function readLoot (port) {
   } catch { return null }
 }
 
-module.exports = { readLoot, evaluate, getPageWs, LOOT_EXPR, available: () => !!WebSocket }
+module.exports = { readLoot, waitReady, evaluate, getPageWs, LOOT_EXPR, available: () => !!WebSocket }
