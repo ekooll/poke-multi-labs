@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Loot total</title>
+<style>
+  :root{
+    --bg:#0a0605; --surface-2:#1e1210; --surface-3:#261712;
+    --line:rgba(216,138,74,.18); --line-strong:rgba(229,179,79,.4);
+    --gold:#e5b34f; --gold-soft:#d98350; --cream:#f7eee7;
+    --muted:#b5a196; --faint:#7d6d64; --good:#4fc47a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;color:var(--cream);
+    font-family:Inter,system-ui,-apple-system,sans-serif;
+    background:radial-gradient(120% 90% at 0% 0%,#1b0f0b 0%,#0a0605 60%)}
+  .bar{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;
+    border-bottom:1px solid var(--line);-webkit-app-region:drag;cursor:move}
+  .bar .t{font-weight:800;font-size:13px;color:var(--gold-soft);letter-spacing:.02em}
+  .bar button{-webkit-app-region:no-drag;background:transparent;border:0;color:var(--faint);
+    font-size:14px;cursor:pointer;border-radius:6px;width:24px;height:24px}
+  .bar button:hover{color:var(--good);background:rgba(79,196,122,.12)}
+  .box{padding:12px;display:flex;flex-direction:column;gap:6px;font-size:13px}
+  .row{display:flex;justify-content:space-between;gap:10px;color:var(--muted)}
+  .row b{color:var(--gold-soft);font-weight:600}
+  .row i{color:var(--faint);font-size:11px}
+  .tot{display:flex;justify-content:space-between;border-top:1px solid var(--line);
+    padding-top:9px;margin-top:3px;font-weight:800;color:var(--cream);font-size:14px}
+  .tot b{color:var(--good)}
+  .na{color:var(--faint);font-style:italic}
+  .ft{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;
+    border-top:1px solid var(--line)}
+  .ft button{background:var(--surface-2);border:1px solid var(--line);color:var(--muted);
+    border-radius:9px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+  .ft button:hover{border-color:var(--line-strong);color:var(--gold)}
+  .ft label{font-size:11px;color:var(--faint);display:flex;align-items:center;gap:5px;cursor:pointer}
+  .hint{padding:0 12px 11px;color:var(--faint);font-size:10px;line-height:1.4}
+</style>
+</head>
+<body>
+  <div class="bar"><span class="t">💰 Loot total das contas</span><button id="x" title="Fechar">✕</button></div>
+  <div class="box" id="box"><div class="na">carregando…</div></div>
+  <div class="hint" id="hint">Abra o painel “Hunt Analyzer” dentro de cada conta pra o loot aparecer.</div>
+  <div class="ft">
+    <button id="rf">↻ Atualizar</button>
+    <label><input type="checkbox" id="auto" checked /> auto (4s)</label>
+  </div>
+<script>
+  const $ = (s) => document.querySelector(s)
+  const namesMap = () => { try { return JSON.parse(localStorage.getItem('pml_names') || '{}') } catch { return {} } }
+  const nameOf = (n) => namesMap()[n] || ('Conta ' + n)
+  const fmt = (n) => '$' + Number(n || 0).toLocaleString('pt-BR')
+  let busy = false
+  async function refresh () {
+    if (busy) return; busy = true
+    try {
+      const r = await window.ml.readLoot()
+      if (!r || !r.available) { $('#box').innerHTML = '<div class="na">Leitor de loot indisponível nesta versão.</div>'; return }
+      if (!r.results || !r.results.length) { $('#box').innerHTML = '<div class="na">Nenhuma conta aberta.</div>'; return }
+      $('#box').innerHTML = r.results.map(x =>
+        '<div class="row"><span>' + nameOf(x.num) + '</span>' +
+        (x.loot != null ? '<b>' + fmt(x.loot) + '</b>' : '<i>abra o Hunt Analyzer</i>') + '</div>'
+      ).join('') + '<div class="tot"><span>Total</span><b>' + fmt(r.total) + '</b></div>'
+    } catch (e) { $('#box').innerHTML = '<div class="na">Erro: ' + e.message + '</div>' }
+    finally { busy = false }
+  }
+  $('#rf').onclick = refresh
+  $('#x').onclick = () => window.close()
+  setInterval(() => { if ($('#auto').checked) refresh() }, 4000)
+  refresh()
+</script>
+</body>
+</html>

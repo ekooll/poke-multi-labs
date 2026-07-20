@@ -11,5 +11,13 @@ contextBridge.exposeInMainWorld('ml', {
   onState: (cb) => ipcRenderer.on('state', (_e, s) => cb(s)),
   login: (email, pass) => ipcRenderer.invoke('login', email, pass),
   signup: (email, pass) => ipcRenderer.invoke('signup', email, pass),
-  logout: () => ipcRenderer.invoke('logout')
+  logout: () => ipcRenderer.invoke('logout'),
+  readLoot: () => ipcRenderer.invoke('read-loot'),
+  openLoot: () => ipcRenderer.invoke('open-loot'),
+  checkUpdate: () => ipcRenderer.invoke('check-update'),
+  applyUpdate: () => ipcRenderer.invoke('apply-update'),
+  getProfile: () => ipcRenderer.invoke('get-profile'),
+  saveProfile: (nome, discord, nick) => ipcRenderer.invoke('save-profile', nome, discord, nick),
+  checkAdmin: () => ipcRenderer.invoke('check-admin'),
+  listParticipants: () => ipcRenderer.invoke('list-participants')
 })

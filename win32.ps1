@@ -18,13 +18,33 @@ public class W {
   [DllImport("user32.dll")] public static extern int SetWindowLong(IntPtr h, int i, int v);
   [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr h, out RECT r);
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int cx, int cy, uint f);
+  // --- foco de teclado cross-process (reparent) ---
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+  [DllImport("user32.dll")] public static extern IntPtr SetFocus(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
 }
 "@
 
 function Log($m){ [Console]::Error.WriteLine($m) }
 
+# FOCO DE TECLADO cross-process: SetFocus so vale se a thread chamadora (este PS)
+# estiver anexada as filas do host E do child. Anexa temporario, foca, desanexa.
+function FocusChild($wh, $childTid){
+  [void][W]::SetForegroundWindow($hostH)
+  [void][W]::AttachThreadInput($psTid,$hostTid,$true)
+  [void][W]::AttachThreadInput($psTid,$childTid,$true)
+  [void][W]::SetFocus($wh)
+  [void][W]::AttachThreadInput($psTid,$childTid,$false)
+  [void][W]::AttachThreadInput($psTid,$hostTid,$false)
+}
+
 $hostH = [IntPtr]([int64]$cfg.hostHwnd)
+$hpid = 0
+$hostTid = [W]::GetWindowThreadProcessId($hostH, [ref]$hpid)
+$psTid = [W]::GetCurrentThreadId()
 $GWL_STYLE=-16; $WS_CHILD=0x40000000; $WS_POPUP=-2147483648
 $WS_CAPTION=0x00C00000; $WS_THICKFRAME=0x00040000; $WS_BORDER=0x00800000
 $SWP_FRAMECHANGED=0x0020; $SWP_NOZORDER=0x0004; $SWP_SHOWWINDOW=0x0040; $SWP_HIDEWINDOW=0x0080
@@ -80,9 +100,19 @@ foreach($wh in $handles){
   [void][W]::SetWindowLong($wh,$GWL_STYLE,$style)
   [void][W]::SetParent($wh,$hostH)
 
+  # CRÍTICO: reparent entre processos (host Electron <-> Chrome) NAO conecta as
+  # filas de input das threads -> mouse chega mas TECLADO nao (campos de preco/chat
+  # nao digitam). AttachThreadInput amarra as duas threads e o teclado passa a fluir.
+  try {
+    $cpid = 0
+    $childTid = [W]::GetWindowThreadProcessId($wh, [ref]$cpid)
+    if($childTid -ne 0 -and $childTid -ne $hostTid){ [void][W]::AttachThreadInput($hostTid,$childTid,$true) }
+  } catch { Log ("attachinput fail: " + $_.Exception.Message) }
+
   if($solo -ge 0){
     if($i -eq $solo){
       [void][W]::SetWindowPos($wh,[IntPtr]::Zero,$ax,$ay,$aw,$ah,($SWP_FRAMECHANGED -bor $SWP_NOZORDER -bor $SWP_SHOWWINDOW))
+      FocusChild $wh $childTid
     } else {
       [void][W]::SetWindowPos($wh,[IntPtr]::Zero,0,0,0,0,($SWP_NOZORDER -bor $SWP_HIDEWINDOW))
     }
@@ -90,6 +120,7 @@ foreach($wh in $handles){
     $cx=$ax + ($i % $cols)*$cw
     $cy=$ay + [math]::Floor($i/$cols)*$ch
     [void][W]::SetWindowPos($wh,[IntPtr]::Zero,[int]$cx,[int]$cy,[int]$cw,[int]$ch,($SWP_FRAMECHANGED -bor $SWP_NOZORDER -bor $SWP_SHOWWINDOW))
+    if($n -eq 1){ FocusChild $wh $childTid }   # 1 conta so: ja foca pra digitar
   }
   $placed += $wh.ToInt64().ToString()
   $i++

@@ -39,6 +39,9 @@
   .btn.ghost:hover{border-color:var(--gold);color:var(--gold)}
   .msg{min-height:18px;margin-top:12px;font-size:12.5px;text-align:center;color:var(--muted)}
   .msg.err{color:var(--bad)} .msg.ok{color:var(--good)}
+  .sorteio{margin-top:16px;padding-top:14px;border-top:1px dashed var(--line)}
+  .shead{color:var(--gold-soft);font-size:11px;font-weight:700;margin-bottom:9px}
+  .shead span{color:var(--faint);font-weight:500;text-transform:none;letter-spacing:0}
 </style>
 </head>
 <body>
@@ -53,6 +56,14 @@
       <input id="email" type="email" placeholder="seu@email.com" autocomplete="username" />
       <label>Senha</label>
       <input id="pass" type="password" placeholder="••••••••" autocomplete="current-password" />
+
+      <div class="sorteio" id="sorteio">
+        <div class="shead">🎁 Dados pra sorteio na live <span>(opcional · só ao criar conta)</span></div>
+        <input id="nome" type="text" placeholder="Nome real" />
+        <input id="discord" type="text" placeholder="Discord (ex: ekoo_)" style="margin-top:8px" />
+        <input id="nick" type="text" placeholder="Nick no jogo" style="margin-top:8px" />
+      </div>
+
       <button class="btn" id="entrar">Entrar</button>
       <button class="btn ghost" id="criar">Criar conta</button>
       <div class="msg" id="msg"></div>
@@ -79,6 +90,9 @@
     const r = await window.ml.signup(e, p)
     $('#criar').disabled = false
     if (r && r.error) return msg(r.error, 'err')
+    // guarda os dados de sorteio pra salvar assim que logar (signup pode nao ter sessao)
+    const perfil = { nome: $('#nome').value.trim(), discord: $('#discord').value.trim(), nick: $('#nick').value.trim() }
+    if (perfil.nome || perfil.discord || perfil.nick) { try { localStorage.setItem('pml_pending_profile', JSON.stringify(perfil)) } catch {} }
     if (r && r.needConfirm) return msg('Conta criada! Confirme pelo e-mail e depois entre.', 'ok')
     msg('Conta criada! Agora clique em Entrar.', 'ok')
   }

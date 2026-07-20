@@ -7,12 +7,19 @@
 //   npm run host   (ou: electron host-main.js [1..4])
 // ============================================================
 
-const { app, BrowserWindow, ipcMain, screen } = require('electron')
+const { app, BrowserWindow, ipcMain, screen, globalShortcut } = require('electron')
 const { spawn } = require('child_process')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const CFG = require('./config.js')
+const cdp = require('./cdp.js')
+
+// porta de debug (CDP) unica por conta -> le loot/saldo do jogo
+const DEBUG_PORT_BASE = 9333
+// auto-update: baixa SO os arquivos do app (uns ~100KB) do GitHub, sem rebaixar o Electron
+const REPO_RAW = 'https://raw.githubusercontent.com/ekooll/poke-multi-labs/main'
+const APP_FILES = ['host-main.js', 'host-preload.js', 'config.js', 'cdp.js', 'win32.ps1', 'popupwatch.ps1', 'focuswatch.ps1', 'renderer/host-toolbar.html', 'renderer/login.html', 'renderer/loot.html']
 
 const SIDEBAR_W = 206           // DIP (aberta) — bate com .side no CSS
 const SIDEBAR_W_COLLAPSED = 56  // DIP (recolhida) — bate com body.collapsed .side
@@ -20,6 +27,7 @@ const TOP_H = 0
 let sidebarCollapsed = false
 
 let win = null
+let lootWin = null           // janela flutuante do Hunt Analyzer (soma de loot)
 let slots = []               // [{ profile, hwnd(str|null) }] em ordem conta-1..N
 let layoutMode = 'grid'      // 'grid' | 'columns' | 'rows'
 let solo = -1
@@ -30,6 +38,7 @@ let busy = false
 // ---- auth / licenca (Fase 3) ----
 let licensedTelas = 1   // quantas telas a licenca libera (1 gratis / 4 pago)
 let authEmail = null
+let authToken = null    // access_token atual (pra chamar RPCs do sorteio)
 let machineId = null
 
 const profilesDir = path.join(os.homedir(), '.poke-multi-labs', 'perfis')
@@ -93,6 +102,14 @@ async function checkLicense (token) {
   const d = await supaPost('/rest/v1/rpc/verificar_licenca', { p_machine_id: mid, p_nome: os.hostname() }, token)
   return d
 }
+// chama um RPC autenticado; se o token expirou, faz refresh e tenta 1x
+async function callRpc (fn, body) {
+  if (!authToken) { const s = await refreshToken(); if (s) authToken = s.access_token }
+  let d = await supaPost('/rest/v1/rpc/' + fn, body || {}, authToken)
+  const expirou = d && (d.code === 'PGRST301' || (typeof d.message === 'string' && /jwt|expired|token/i.test(d.message)))
+  if (expirou) { const s = await refreshToken(); if (s) { authToken = s.access_token; d = await supaPost('/rest/v1/rpc/' + fn, body || {}, authToken) } }
+  return d
+}
 
 function findBrowser () {
   const pf = process.env['ProgramFiles'] || 'C:\\Program Files'
@@ -116,6 +133,9 @@ function hostHwndStr () {
   return buf.length === 8 ? buf.readBigUInt64LE().toString() : String(buf.readUInt32LE())
 }
 function currentHwnds () { return slots.map(s => s.hwnd).filter(Boolean) }
+// arquivo lido pelo focuswatch.ps1 (foco ao clicar): host + paineis atuais
+const hwndsFile = () => path.join(LOGDIR, 'hwnds.json')
+function writeHwnds () { try { if (win) fs.writeFileSync(hwndsFile(), JSON.stringify({ host: hostHwndStr(), hwnds: currentHwnds() })) } catch {} }
 // no .exe empacotado os .ps1 ficam em app.asar.unpacked (o PowerShell nao le de dentro do asar)
 function scriptPath (name) { return path.join(__dirname, name).replace('app.asar', 'app.asar.unpacked') }
 
@@ -133,16 +153,18 @@ function runWin32 (payload) {
   })
 }
 
-function spawnChrome (profile) {
+function spawnChrome (profile, port) {
   const browser = findBrowser()
-  dlog('spawnChrome browser=' + browser + ' profile=' + profile)
+  dlog('spawnChrome browser=' + browser + ' profile=' + profile + ' port=' + port)
   if (!browser) { dlog('!! CHROME/EDGE NAO ENCONTRADO'); return }
   try {
+    const dbg = port ? [`--remote-debugging-port=${port}`, '--remote-allow-origins=*'] : []
     const child = spawn(browser, [
       `--user-data-dir=${profile}`,
       `--app=${CFG.GAME_URL}`,
       '--window-position=-4000,-4000',
       '--window-size=900,600',
+      ...dbg,
       ...CFG.CHROME_FLAGS
     ], { detached: true, stdio: 'ignore' })
     child.on('error', e => dlog('!! chrome spawn error ' + e.message))
@@ -188,14 +210,18 @@ async function addAccount () {
   if (slots.length >= Math.min(licensedTelas, CFG.MAX_PANELS)) return
   const num = lowestFreeNum(); if (num == null) return
   const profile = path.join(profilesDir, `conta-${num}`)
-  const slot = { num, profile, hwnd: null }
+  const port = DEBUG_PORT_BASE + num
+  const slot = { num, profile, port, hwnd: null }
   slots.push(slot); pushState()
   await killProfile(profile)      // await = sem race (nao mata o chrome novo)
   await delay(250)
-  spawnChrome(profile)
+  spawnChrome(profile, port)
   dlog('addAccount num=' + num)
   const res = await runWin32({ hostHwnd: hostHwndStr(), topPx: topPx(), leftPx: leftPx(), mode: layoutMode, solo: -1, profiles: [profile] })
   if (res && res.hwnds && res.hwnds[0]) slot.hwnd = res.hwnds[0]
+  // se estava em modo FOCO (solo), mostra a conta recem-aberta (senao o layout
+  // reaplicava o solo antigo e "voltava" pra conta anterior -> efeito "pisca").
+  if (solo >= 0) solo = slots.indexOf(slot)
   await applyLayout(); pushState()
   dlog('addAccount FIM num=' + num + ' hwnd=' + slot.hwnd)
 }
@@ -224,13 +250,32 @@ async function setCount (target) {
 async function publicAdd () { if (busy || !win) return; busy = true; try { await addAccount() } catch (e) { dlog('!! add ' + e.message) } finally { busy = false } }
 async function publicClose (idx) { if (busy || !win) return; busy = true; try { await closeAccountAt(idx) } catch (e) { dlog('!! close ' + e.message) } finally { busy = false } }
 
+// ---- atalhos globais (funcionam mesmo com o foco dentro do Chrome encaixado) ----
+// Ctrl+1..4 = foca a conta pelo NUMERO (nao pelo indice) · Ctrl+0 = todas · F11 = tela cheia
+function focusByNum (n) {
+  if (!win) return
+  if (n === 0) { solo = -1 }
+  else { const idx = slots.findIndex(s => s.num === n); if (idx < 0) return; solo = idx }
+  applyLayout(); pushState()
+}
+function registerShortcuts () {
+  try {
+    for (let n = 1; n <= CFG.MAX_PANELS; n++) globalShortcut.register('CommandOrControl+' + n, () => focusByNum(n))
+    globalShortcut.register('CommandOrControl+0', () => focusByNum(0))
+    globalShortcut.register('F11', () => { if (win) win.setFullScreen(!win.isFullScreen()) })
+    dlog('atalhos registrados')
+  } catch (e) { dlog('!! registerShortcuts ' + e.message) }
+}
+function unregisterShortcuts () { try { globalShortcut.unregisterAll() } catch {} }
+
 function scheduleRelayout () { clearTimeout(relayoutTimer); relayoutTimer = setTimeout(applyLayout, 180) }
 
 async function applyLayout () {
   if (!win) return
   const hs = currentHwnds()
-  if (!hs.length) return
+  if (!hs.length) { writeHwnds(); return }
   await runWin32({ hostHwnd: hostHwndStr(), topPx: topPx(), leftPx: leftPx(), mode: layoutMode, solo, hwnds: hs })
+  writeHwnds()   // atualiza a lista pro vigia de foco-ao-clicar
 }
 
 function pushState () {
@@ -254,6 +299,20 @@ async function pollPopups () {
 }
 function startPopupWatch () { if (!popupTimer) popupTimer = setInterval(pollPopups, 1800) }
 function stopPopupWatch () { clearInterval(popupTimer); popupTimer = null }
+
+// ---- vigia de FOCO AO CLICAR (foco de teclado no painel clicado) ----
+let focusWatcher = null
+function startFocusWatch () {
+  if (focusWatcher) return
+  try {
+    writeHwnds()
+    focusWatcher = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath('focuswatch.ps1'), hwndsFile()], { stdio: 'ignore' })
+    focusWatcher.on('exit', () => { focusWatcher = null })
+    focusWatcher.on('error', e => { dlog('!! focuswatch ' + e.message); focusWatcher = null })
+    dlog('focuswatch iniciado')
+  } catch (e) { dlog('!! startFocusWatch ' + e.message) }
+}
+function stopFocusWatch () { try { focusWatcher && focusWatcher.kill() } catch {} focusWatcher = null }
 
 // auto-QA: exercita todos os controles do app e loga erros (env PMLABS_SELFTEST=1)
 async function runSelfTest () {
@@ -283,10 +342,11 @@ async function enterApp (token, email) {
   const lic = await checkLicense(token)
   licensedTelas = (lic && lic.telas) ? lic.telas : 1
   authEmail = email
+  authToken = token
   dlog('enterApp email=' + email + ' telas=' + licensedTelas + ' lic=' + JSON.stringify(lic))
   win.loadFile(path.join(__dirname, 'renderer', 'host-toolbar.html'))
   win.webContents.once('did-finish-load', async () => {
-    await setCount(1); startPopupWatch()
+    await setCount(1); startPopupWatch(); registerShortcuts(); startFocusWatch()
     if (process.env.PMLABS_SELFTEST) runSelfTest()
   })
 }
@@ -300,8 +360,9 @@ function createWindow () {
     webPreferences: { preload: path.join(__dirname, 'host-preload.js'), contextIsolation: true, nodeIntegration: false }
   })
   win.setMenuBarVisibility(false)
+  win.maximize()   // abre maximizada (pediram tela cheia do launcher)
   win.on('resize', () => scheduleRelayout())
-  win.on('closed', () => { win = null; stopPopupWatch(); killAll() })
+  win.on('closed', () => { win = null; try { lootWin && lootWin.close() } catch {} stopPopupWatch(); stopFocusWatch(); killAll() })
 
   // boot: restaura sessao salva -> entra direto; senao mostra login
   refreshToken()
@@ -318,6 +379,93 @@ ipcMain.on('set-solo', (_e, idx) => { solo = (idx == null ? -1 : idx); applyLayo
 ipcMain.on('set-sidebar', (_e, collapsed) => { sidebarCollapsed = !!collapsed; applyLayout() })
 ipcMain.handle('get-state', () => ({ count: slots.length, embedded: currentHwnds().length, mode: layoutMode, solo, maxTelas: licensedTelas, email: authEmail }))
 
+// --- Hunt Analyzer: abre a janela flutuante de loot (aba solta, sempre no topo) ---
+ipcMain.handle('open-loot', () => {
+  if (lootWin && !lootWin.isDestroyed()) { lootWin.show(); lootWin.focus(); return true }
+  const b = win ? win.getBounds() : { x: 200, y: 120, width: 1200 }
+  lootWin = new BrowserWindow({
+    width: 320, height: 360, x: b.x + b.width - 360, y: b.y + 70,
+    frame: false, resizable: true, alwaysOnTop: true, skipTaskbar: true,
+    backgroundColor: '#0a0605', title: 'Loot total',
+    webPreferences: { preload: path.join(__dirname, 'host-preload.js'), contextIsolation: true, nodeIntegration: false }
+  })
+  lootWin.setMenuBarVisibility(false)
+  lootWin.loadFile(path.join(__dirname, 'renderer', 'loot.html'))
+  lootWin.on('closed', () => { lootWin = null })
+  return true
+})
+
+// --- Hunt Analyzer: le o loot de cada conta (via CDP) e soma ---
+ipcMain.handle('read-loot', async () => {
+  const results = await Promise.all(slots.map(async s => ({
+    num: s.num, embedded: !!s.hwnd, loot: await cdp.readLoot(s.port)
+  })))
+  const total = results.reduce((a, r) => a + (r.loot || 0), 0)
+  dlog('read-loot total=' + total + ' ' + JSON.stringify(results))
+  return { results, total, available: cdp.available() }
+})
+
+// --- auto-update (baixa so os arquivos do app do GitHub) ---
+function localVersion () {
+  try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version || '0.0.0' } catch { return '0.0.0' }
+}
+function cmpVer (a, b) {
+  const pa = String(a).split('.').map(Number); const pb = String(b).split('.').map(Number)
+  for (let i = 0; i < 3; i++) { const d = (pa[i] || 0) - (pb[i] || 0); if (d) return d > 0 ? 1 : -1 }
+  return 0
+}
+ipcMain.handle('check-update', async () => {
+  try {
+    const r = await fetch(REPO_RAW + '/app-version.json?t=' + Date.now())
+    if (!r.ok) throw new Error('HTTP ' + r.status)
+    const man = await r.json()
+    const cur = localVersion()
+    return { ok: true, current: cur, latest: man.version, hasUpdate: cmpVer(man.version, cur) > 0, packaged: app.isPackaged }
+  } catch (e) { dlog('!! check-update ' + e.message); return { ok: false, error: e.message } }
+})
+ipcMain.handle('apply-update', async () => {
+  if (!app.isPackaged) return { ok: false, error: 'modo dev nao atualiza (protege o codigo-fonte)' }
+  try {
+    const man = await (await fetch(REPO_RAW + '/app-version.json?t=' + Date.now())).json()
+    const files = (man && Array.isArray(man.files) && man.files.length) ? man.files : APP_FILES
+    // baixa TUDO primeiro (so grava se todos vierem ok)
+    const blobs = {}
+    for (const f of files) {
+      const rr = await fetch(REPO_RAW + '/' + f + '?t=' + Date.now())
+      if (!rr.ok) throw new Error('baixando ' + f + ' (' + rr.status + ')')
+      blobs[f] = await rr.text()
+    }
+    for (const f of files) {
+      const dest = path.join(__dirname, f)
+      fs.mkdirSync(path.dirname(dest), { recursive: true })
+      fs.writeFileSync(dest, blobs[f])
+    }
+    try { const pj = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')); pj.version = man.version || pj.version; fs.writeFileSync(path.join(__dirname, 'package.json'), JSON.stringify(pj)) } catch {}
+    dlog('apply-update OK -> ' + man.version + ' | reiniciando')
+    setTimeout(() => { app.relaunch(); app.exit(0) }, 300)
+    return { ok: true, version: man.version }
+  } catch (e) { dlog('!! apply-update ' + e.message); return { ok: false, error: e.message } }
+})
+
+// --- sorteio: perfil do usuario (nome/discord/nick) + area de admin ---
+ipcMain.handle('get-profile', async () => {
+  const d = await callRpc('meu_perfil_sorteio', {})
+  return Array.isArray(d) ? (d[0] || null) : null
+})
+ipcMain.handle('save-profile', async (_e, nome, discord, nick) => {
+  await callRpc('salvar_perfil_sorteio', { p_nome: nome, p_discord: discord, p_nick: nick })
+  return { ok: true }
+})
+ipcMain.handle('check-admin', async () => {
+  const d = await callRpc('sou_admin_sorteio', {})
+  return d === true
+})
+ipcMain.handle('list-participants', async () => {
+  const d = await callRpc('listar_participantes_sorteio', {})
+  if (Array.isArray(d)) return { ok: true, rows: d }
+  return { ok: false, error: (d && d.message) || 'acesso negado' }
+})
+
 // --- auth ---
 ipcMain.handle('login', async (_e, email, password) => {
   const r = await doSignin(email, password)
@@ -327,10 +475,11 @@ ipcMain.handle('login', async (_e, email, password) => {
 ipcMain.handle('signup', async (_e, email, password) => doSignup(email, password))
 ipcMain.handle('logout', async () => {
   clearSession(); licensedTelas = 1; authEmail = null
-  stopPopupWatch(); killAll()
+  stopPopupWatch(); stopFocusWatch(); unregisterShortcuts(); try { lootWin && lootWin.close() } catch {} killAll()
   win.loadFile(path.join(__dirname, 'renderer', 'login.html'))
   return true
 })
 
 app.whenReady().then(createWindow)
-app.on('window-all-closed', () => { killAll(); if (process.platform !== 'darwin') app.quit() })
+app.on('will-quit', () => { unregisterShortcuts(); stopFocusWatch() })
+app.on('window-all-closed', () => { unregisterShortcuts(); stopFocusWatch(); killAll(); if (process.platform !== 'darwin') app.quit() })

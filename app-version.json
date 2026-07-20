@@ -1,0 +1,16 @@
+{
+  "version": "0.4.0",
+  "notes": "Foco-ao-clicar (digita em qualquer conta), abre maximizada, loot no rail, rename corrigido, perfil+sorteio, atalho via .bat no zip.",
+  "files": [
+    "host-main.js",
+    "host-preload.js",
+    "config.js",
+    "cdp.js",
+    "win32.ps1",
+    "popupwatch.ps1",
+    "focuswatch.ps1",
+    "renderer/host-toolbar.html",
+    "renderer/login.html",
+    "renderer/loot.html"
+  ]
+}

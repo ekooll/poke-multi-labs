@@ -78,10 +78,53 @@
   /* ---- footer ---- */
   .foot{padding:10px 12px;border-top:1px solid var(--line);color:var(--faint);font-size:10.5px;line-height:1.5}
   .foot b{color:var(--gold-soft)}
+  /* ---- Hunt Analyzer (soma de loot) ---- */
+  .lootbox{display:none;flex-direction:column;gap:5px;margin-top:9px;font-size:12px}
+  .lootbox.show{display:flex}
+  .lootrow{display:flex;justify-content:space-between;gap:8px;color:var(--muted)}
+  .lootrow b{color:var(--gold-soft);font-weight:600}
+  .lootrow .na{color:var(--faint);font-style:italic}
+  .loottotal{display:flex;justify-content:space-between;border-top:1px solid var(--line);
+    padding-top:7px;margin-top:2px;color:var(--cream);font-weight:800}
+  .loottotal b{color:var(--good)}
+  .loothint{color:var(--faint);font-size:10px;line-height:1.4;margin-top:3px}
+  /* ---- utilitarios (atualizar / atalho) ---- */
+  .util{display:flex;gap:6px;margin-top:9px}
+  .util .u{flex:1;background:var(--surface-2);border:1px solid var(--line);color:var(--muted);
+    border-radius:9px;padding:7px 0;font-size:11px;font-weight:600;cursor:pointer;transition:.14s;font-family:Inter,sans-serif}
+  .util .u:hover{border-color:var(--line-strong);color:var(--gold)}
+  .util .u.hot{border-color:var(--gold);color:var(--gold)}
+  /* ---- perfil pra sorteio ---- */
+  .perfilbox{display:none;flex-direction:column;gap:7px;margin-top:9px}
+  .perfilbox.show{display:flex}
+  .perfilbox input{background:var(--surface-3);border:1px solid var(--line);border-radius:9px;
+    padding:8px 10px;color:var(--cream);font:500 12px Inter,sans-serif;outline:none}
+  .perfilbox input:focus{border-color:var(--gold)}
+  .perfilbox .sv{background:linear-gradient(180deg,#f0c266,#d1912f);color:#1a0b07;border:0;
+    border-radius:9px;padding:8px;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit}
+  .perfilbox .st{font-size:10px;color:var(--faint);min-height:12px}
+  #admin-btn{margin-top:8px;border-color:var(--good);color:var(--good)}
   ::-webkit-scrollbar{width:7px}::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:6px}
+  /* ---- nome editavel (duplo-clique) ---- */
+  .aedit{flex:1;min-width:0;background:var(--surface-3);border:1px solid var(--gold);border-radius:7px;
+    color:var(--cream);padding:6px 8px;font-size:13px;font-weight:600;font-family:Inter,sans-serif;outline:none}
+  /* ---- rail (contas no modo recolhido) ---- */
+  .rail{display:none}
+  .rbtn{position:relative;width:36px;height:36px;border-radius:10px;background:var(--surface-2);
+    color:var(--cream);border:1px solid var(--line);font-weight:700;font-size:13px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;transition:.14s var(--ease)}
+  .rbtn:hover{border-color:var(--line-strong);color:var(--gold);transform:translateY(-1px)}
+  .rbtn.on{color:var(--gold);border-color:var(--gold);background:linear-gradient(180deg,#3a2016,#26130d)}
+  .rbtn .rdot{position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;
+    background:var(--faint);border:1.5px solid var(--surface)}
+  .rbtn .rdot.up{background:var(--good)}
+  .radd{border-style:dashed;border-color:var(--line-strong);color:var(--gold-soft);font-size:16px}
+  .rloot{color:var(--good);border-color:rgba(79,196,122,.5);font-size:16px;font-weight:800}
+  .rloot:hover{color:var(--good);border-color:var(--good);background:linear-gradient(180deg,#123021,#0d1f16)}
   /* ---- recolhido ---- */
   body.collapsed .side{width:56px}
   body.collapsed .lockup,body.collapsed .body,body.collapsed .foot{display:none}
+  body.collapsed .rail{display:flex;flex-direction:column;align-items:center;gap:9px;padding:14px 0;flex:1;overflow:auto}
   body.collapsed .head{justify-content:center;padding:12px 0;flex-direction:column;gap:10px}
 </style>
 </head>
@@ -90,7 +133,7 @@
     <div class="head">
       <img class="logo" src="logo-vp.png" alt="VP" />
       <div class="lockup">
-        <div class="word">VPERTS MULTI<small>multi-conta</small></div>
+        <div class="word">VPERTS<small>multi-conta</small></div>
       </div>
       <button class="toggle" id="toggle" title="Recolher">◀</button>
     </div>
@@ -119,7 +162,26 @@
         <span class="lbl">Contas</span>
         <div class="accts" id="accts"></div>
       </div>
+
+      <div class="grp">
+        <span class="lbl">Lucro</span>
+        <button class="b" id="loot-btn" style="flex:none">💰 Loot total (janela)</button>
+      </div>
+
+      <div class="grp">
+        <span class="lbl">Perfil pra sorteio</span>
+        <button class="b" id="perfil-btn" style="flex:none">👤 Meus dados</button>
+        <div class="perfilbox" id="perfilbox"></div>
+        <button class="b" id="admin-btn" style="flex:none;display:none">⬇ Baixar participantes (CSV)</button>
+      </div>
+
+      <div class="util">
+        <button class="u" id="btn-update" title="Buscar atualização" style="flex:1">↻ Buscar atualização</button>
+      </div>
     </div>
+
+    <!-- rail: contas viram botoes quando a sidebar esta recolhida -->
+    <div class="rail" id="rail"></div>
 
     <div class="foot" id="foot">—</div>
   </div>
@@ -127,6 +189,44 @@
 <script>
   const $ = (s) => document.querySelector(s)
   let collapsed = false
+  let last = null   // ultimo estado (pra re-render apos editar nome)
+
+  // ---- nomes personalizados por conta (duplo-clique edita; persiste local) ----
+  function loadNames () { try { return JSON.parse(localStorage.getItem('pml_names') || '{}') } catch { return {} } }
+  function saveNames () { try { localStorage.setItem('pml_names', JSON.stringify(names)) } catch {} }
+  let names = loadNames()
+  const nameOf = (num) => names[num] || ('Conta ' + num)
+  function setName (num, val) {
+    val = (val || '').trim().slice(0, 18)
+    if (val && val !== ('Conta ' + num)) names[num] = val; else delete names[num]
+    saveNames(); if (last) render(last)
+  }
+  function startEdit (row, sl) {
+    const btn = row.querySelector('.aname'); if (!btn) return
+    const inp = document.createElement('input')
+    inp.className = 'aedit'; inp.value = nameOf(sl.num); inp.maxLength = 18
+    btn.replaceWith(inp); inp.focus(); inp.select()
+    inp.onkeydown = (e) => { if (e.key === 'Enter') inp.blur(); else if (e.key === 'Escape') { inp.onblur = null; render(last) } }
+    inp.onblur = () => setName(sl.num, inp.value)
+  }
+  // separa clique-simples (foca, com atraso) de duplo-clique (renomeia).
+  // sem isso o 1o clique ja re-renderiza a lista e o dblclick cai num no morto.
+  function wireFocusEdit (el, sl, doEdit) {
+    let t = null
+    el.onclick = () => { clearTimeout(t); t = setTimeout(() => window.ml.setSolo(sl.i), 230) }
+    el.ondblclick = () => { clearTimeout(t); doEdit() }
+  }
+  // renomear direto do rail recolhido: campinho flutuante ao lado do botao
+  function editRailName (anchor, sl) {
+    const inp = document.createElement('input')
+    inp.className = 'aedit'; inp.value = nameOf(sl.num); inp.maxLength = 18
+    const r = anchor.getBoundingClientRect()
+    inp.style.position = 'fixed'; inp.style.left = (r.right + 6) + 'px'; inp.style.top = r.top + 'px'
+    inp.style.width = '130px'; inp.style.zIndex = '60'
+    document.body.appendChild(inp); inp.focus(); inp.select()
+    inp.onkeydown = (e) => { if (e.key === 'Enter') inp.blur(); else if (e.key === 'Escape') { inp.onblur = null; inp.remove() } }
+    inp.onblur = () => { setName(sl.num, inp.value); inp.remove() }
+  }
 
   function renderAccts (s) {
     const box = $('#accts'); box.innerHTML = ''
@@ -141,10 +241,13 @@
     ;(s.slots || []).forEach(sl => {
       const row = document.createElement('div')
       row.className = 'arow' + (s.solo === sl.i ? ' on' : '')
+      const nm = nameOf(sl.num)
       row.innerHTML = '<span class="dot' + (sl.embedded ? ' up' : '') + '"></span>' +
-        '<button class="aname">Conta ' + sl.num + '</button>' +
+        '<button class="aname" title="Clique: focar · Duplo-clique: renomear"></button>' +
         '<button class="ax" title="Fechar">✕</button>'
-      row.querySelector('.aname').onclick = () => window.ml.setSolo(sl.i)
+      const an = row.querySelector('.aname')
+      an.textContent = nm
+      wireFocusEdit(an, sl, () => startEdit(row, sl))
       row.querySelector('.ax').onclick = () => window.ml.closeAccount(sl.i)
       box.appendChild(row)
     })
@@ -157,7 +260,36 @@
     }
   }
 
+  // contas viram botoes quando a sidebar esta recolhida (1 botao por conta aberta)
+  function renderRail (s) {
+    const rail = $('#rail'); if (!rail) return; rail.innerHTML = ''
+    // loot (balao com cifrao) — abre a janela de soma
+    const loot = document.createElement('button')
+    loot.className = 'rbtn rloot'; loot.textContent = '$'; loot.title = 'Loot total das contas'
+    loot.onclick = () => window.ml.openLoot(); rail.appendChild(loot)
+    const all = document.createElement('button')
+    all.className = 'rbtn' + (s.solo === -1 ? ' on' : ''); all.textContent = '▦'; all.title = 'Todas'
+    all.onclick = () => window.ml.setSolo(-1); rail.appendChild(all)
+    ;(s.slots || []).forEach(sl => {
+      const b = document.createElement('button')
+      b.className = 'rbtn' + (s.solo === sl.i ? ' on' : '')
+      const nm = nameOf(sl.num)
+      const label = names[sl.num] ? nm.slice(0, 2).toUpperCase() : String(sl.num)
+      b.innerHTML = '<span>' + label + '</span><span class="rdot' + (sl.embedded ? ' up' : '') + '"></span>'
+      b.title = nm + ' · clique: focar · duplo-clique: renomear'
+      wireFocusEdit(b, sl, () => editRailName(b, sl))
+      rail.appendChild(b)
+    })
+    if (s.count < (s.maxTelas || 1)) {
+      const add = document.createElement('button')
+      add.className = 'rbtn radd'; add.textContent = '+'; add.title = 'Nova conta'
+      add.onclick = () => window.ml.addAccount()
+      rail.appendChild(add)
+    }
+  }
+
   function render (s) {
+    last = s
     const maxT = s.maxTelas || 1
     document.querySelectorAll('#seg-n button').forEach(b => {
       const n = +b.dataset.n
@@ -166,6 +298,7 @@
     })
     document.querySelectorAll('#seg-mode button').forEach(b => b.classList.toggle('on', b.dataset.m === s.mode))
     renderAccts(s)
+    renderRail(s)
     const plano = maxT >= 4 ? 'Assinante · 4 telas' : 'Grátis · 1 tela'
     const foco = s.solo >= 0 ? ' · foco Conta ' + ((s.slots.find(x => x.i === s.solo) || {}).num || '') : ''
     $('#foot').innerHTML =
@@ -193,6 +326,90 @@
     })
   document.querySelectorAll('#seg-mode button').forEach(b =>
     b.onclick = () => window.ml.setLayout(b.dataset.m))
+
+  // ---- Hunt Analyzer: abre a janela flutuante (aba solta) ----
+  document.getElementById('loot-btn').onclick = () => window.ml.openLoot()
+
+  // ---- Atualizar (baixa so os arquivos do app, sem rebaixar tudo) ----
+  const btnUp = document.getElementById('btn-update')
+  btnUp.onclick = async () => {
+    btnUp.disabled = true; btnUp.textContent = 'Verificando…'
+    try {
+      const c = await window.ml.checkUpdate()
+      if (!c || !c.ok) { btnUp.textContent = 'Sem conexão ✕' }
+      else if (!c.hasUpdate) { btnUp.textContent = '✓ Atualizado (v' + c.current + ')' }
+      else if (!c.packaged) { btnUp.textContent = 'v' + c.latest + ' (dev: não troca)' }
+      else {
+        btnUp.textContent = 'Baixando v' + c.latest + '…'; btnUp.classList.add('hot')
+        const a = await window.ml.applyUpdate()
+        btnUp.textContent = a && a.ok ? 'Reiniciando…' : ('Erro: ' + (a && a.error || '?'))
+        return
+      }
+    } catch (e) { btnUp.textContent = 'Erro' }
+    setTimeout(() => { btnUp.disabled = false; btnUp.textContent = '↻ Atualizar'; btnUp.classList.remove('hot') }, 3500)
+  }
+
+  // ---- Perfil pra sorteio ----
+  // 1) se veio dado pendente do cadastro, salva agora (ja logado) e limpa
+  ;(async () => {
+    try {
+      const pend = JSON.parse(localStorage.getItem('pml_pending_profile') || 'null')
+      if (pend && (pend.nome || pend.discord || pend.nick)) {
+        await window.ml.saveProfile(pend.nome, pend.discord, pend.nick)
+        localStorage.removeItem('pml_pending_profile')
+      }
+    } catch (e) {}
+  })()
+  // 2) editor "Meus dados"
+  const perfilBox = document.getElementById('perfilbox')
+  let perfilLoaded = false
+  document.getElementById('perfil-btn').onclick = async () => {
+    perfilBox.classList.toggle('show')
+    if (perfilBox.classList.contains('show') && !perfilLoaded) {
+      perfilBox.innerHTML =
+        '<input id="pf-nome" placeholder="Nome real" maxlength="60">' +
+        '<input id="pf-disc" placeholder="Discord" maxlength="40">' +
+        '<input id="pf-nick" placeholder="Nick no jogo" maxlength="40">' +
+        '<button class="sv" id="pf-save">Salvar</button><div class="st" id="pf-st"></div>'
+      const p = await window.ml.getProfile()
+      if (p) { $('#pf-nome').value = p.nome || ''; $('#pf-disc').value = p.discord || ''; $('#pf-nick').value = p.game_nick || '' }
+      $('#pf-save').onclick = async () => {
+        const st = $('#pf-st'); st.textContent = 'Salvando…'
+        try { await window.ml.saveProfile($('#pf-nome').value, $('#pf-disc').value, $('#pf-nick').value); st.textContent = 'Salvo ✓' }
+        catch (e) { st.textContent = 'Erro ao salvar' }
+      }
+      perfilLoaded = true
+    }
+  }
+  // 3) admin: botao de baixar CSV dos participantes
+  ;(async () => {
+    try {
+      if (await window.ml.checkAdmin()) {
+        const ab = document.getElementById('admin-btn')
+        ab.style.display = 'block'; ab.onclick = baixarCSV
+      }
+    } catch (e) {}
+  })()
+  async function baixarCSV () {
+    const ab = document.getElementById('admin-btn'); const t = ab.textContent
+    ab.disabled = true; ab.textContent = 'Gerando…'
+    try {
+      const r = await window.ml.listParticipants()
+      if (!r || !r.ok) { ab.textContent = 'Sem acesso ✕' }
+      else {
+        const rows = r.rows || []
+        const head = ['email', 'nome', 'discord', 'game_nick', 'criado_em']
+        const csv = [head.join(',')].concat(rows.map(x =>
+          head.map(k => '"' + String(x[k] == null ? '' : x[k]).replace(/"/g, '""') + '"').join(','))).join('\n')
+        const a = document.createElement('a')
+        a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }))
+        a.download = 'participantes-sorteio.csv'; a.click()
+        ab.textContent = '✓ ' + rows.length + ' participantes'
+      }
+    } catch (e) { ab.textContent = 'Erro' }
+    setTimeout(() => { ab.disabled = false; ab.textContent = t }, 3000)
+  }
+
 </script>
 </body>
 </html>
