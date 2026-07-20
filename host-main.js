@@ -19,6 +19,8 @@ const cdp = require('./cdp.js')
 const DEBUG_PORT_BASE = 9333
 // auto-update: baixa SO os arquivos do app (uns ~100KB) do GitHub, sem rebaixar o Electron
 const REPO_RAW = 'https://raw.githubusercontent.com/ekooll/poke-multi-labs/main'
+// zip so com a pasta do app (sem o Electron) — traz ate modulos novos (ex: ws) no update
+const UPDATE_ZIP_URL = 'https://github.com/ekooll/poke-multi-labs/releases/latest/download/app-update.zip'
 const APP_FILES = ['host-main.js', 'host-preload.js', 'config.js', 'cdp.js', 'win32.ps1', 'popupwatch.ps1', 'focuswatch.ps1', 'renderer/host-toolbar.html', 'renderer/login.html', 'renderer/loot.html', 'renderer/curtain.html']
 
 const SIDEBAR_W = 206           // DIP (aberta) — bate com .side no CSS
@@ -496,23 +498,50 @@ ipcMain.handle('check-update', async () => {
     return { ok: true, current: cur, latest: man.version, hasUpdate: cmpVer(man.version, cur) > 0, packaged: app.isPackaged }
   } catch (e) { dlog('!! check-update ' + e.message); return { ok: false, error: e.message } }
 })
+// Metodo 1 (preferido): baixa o app-update.zip da release e extrai por cima
+// (traz JS/HTML/PS + modulos novos, ex node_modules/ws). Sem deps: unzip via PowerShell.
+async function updateViaZip () {
+  const res = await fetch(UPDATE_ZIP_URL + '?t=' + Date.now())
+  if (!res.ok) throw new Error('zip HTTP ' + res.status)
+  const buf = Buffer.from(await res.arrayBuffer())
+  const tmp = path.join(os.tmpdir(), 'pml-upd-' + Date.now())
+  const zipPath = path.join(tmp, 'app.zip')
+  const outDir = path.join(tmp, 'app')
+  fs.mkdirSync(outDir, { recursive: true })
+  fs.writeFileSync(zipPath, buf)
+  await new Promise((resolve, reject) => {
+    const cmd = "Expand-Archive -LiteralPath '" + zipPath + "' -DestinationPath '" + outDir + "' -Force"
+    const ps = spawn('powershell', ['-NoProfile', '-Command', cmd], { stdio: 'ignore' })
+    ps.on('close', c => c === 0 ? resolve() : reject(new Error('unzip exit ' + c)))
+    ps.on('error', reject)
+  })
+  // valida minimamente e copia por cima da pasta do app
+  if (!fs.existsSync(path.join(outDir, 'host-main.js'))) throw new Error('zip sem host-main.js')
+  fs.cpSync(outDir, __dirname, { recursive: true, force: true })
+  try { fs.rmSync(tmp, { recursive: true, force: true }) } catch {}
+}
+// Metodo 2 (fallback): baixa os arquivos de texto avulsos do GitHub raw
+async function updateViaFiles (man) {
+  const files = (man && Array.isArray(man.files) && man.files.length) ? man.files : APP_FILES
+  const blobs = {}
+  for (const f of files) {
+    const rr = await fetch(REPO_RAW + '/' + f + '?t=' + Date.now())
+    if (!rr.ok) throw new Error('baixando ' + f + ' (' + rr.status + ')')
+    blobs[f] = await rr.text()
+  }
+  for (const f of files) {
+    const dest = path.join(__dirname, f)
+    fs.mkdirSync(path.dirname(dest), { recursive: true })
+    fs.writeFileSync(dest, blobs[f])
+  }
+}
 ipcMain.handle('apply-update', async () => {
   if (!app.isPackaged) return { ok: false, error: 'modo dev nao atualiza (protege o codigo-fonte)' }
   try {
     const man = await (await fetch(REPO_RAW + '/app-version.json?t=' + Date.now())).json()
-    const files = (man && Array.isArray(man.files) && man.files.length) ? man.files : APP_FILES
-    // baixa TUDO primeiro (so grava se todos vierem ok)
-    const blobs = {}
-    for (const f of files) {
-      const rr = await fetch(REPO_RAW + '/' + f + '?t=' + Date.now())
-      if (!rr.ok) throw new Error('baixando ' + f + ' (' + rr.status + ')')
-      blobs[f] = await rr.text()
-    }
-    for (const f of files) {
-      const dest = path.join(__dirname, f)
-      fs.mkdirSync(path.dirname(dest), { recursive: true })
-      fs.writeFileSync(dest, blobs[f])
-    }
+    try { await updateViaZip() }
+    catch (e) { dlog('update via zip falhou (' + e.message + '), fallback arquivos avulsos'); await updateViaFiles(man) }
+    // garante a versao local (o zip ja traz o package.json novo; fallback nao)
     try { const pj = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')); pj.version = man.version || pj.version; fs.writeFileSync(path.join(__dirname, 'package.json'), JSON.stringify(pj)) } catch {}
     dlog('apply-update OK -> ' + man.version + ' | reiniciando')
     setTimeout(() => { app.relaunch(); app.exit(0) }, 300)

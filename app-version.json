@@ -1,6 +1,6 @@
 {
-  "version": "0.4.1",
-  "notes": "Transicoes suaves: cortina tematica com fade nas trocas de tela e na abertura de contas (espera o jogo pintar via CDP, sem flash branco).",
+  "version": "0.4.2",
+  "notes": "Botao Atualizar agora baixa o app-update.zip completo (traz ate modulos novos, ex ws), com fallback pros arquivos avulsos.",
   "files": [
     "host-main.js",
     "host-preload.js",

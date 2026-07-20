@@ -29,7 +29,7 @@ mkdir -p "$STAGE/resources/app/node_modules"
 cp -r node_modules/ws "$STAGE/resources/app/node_modules/ws"
 
 cat > "$STAGE/resources/app/package.json" <<'JSON'
-{ "name": "poke-multi-labs", "version": "0.4.1", "main": "host-main.js" }
+{ "name": "poke-multi-labs", "version": "0.4.2", "main": "host-main.js" }
 JSON
 
 echo ">> criando o .bat de atalho (self-locating; vai junto no zip, ao lado do exe)"
@@ -48,5 +48,8 @@ echo ">> gerando zip"
 cd dist
 powershell -NoProfile -Command "Compress-Archive -Path 'PokeMultiLabs-Test\*' -DestinationPath 'PokeMultiLabs-Test.zip' -Force"
 
+echo ">> gerando app-update.zip (pro botao Atualizar — so a pasta do app, com node_modules)"
+powershell -NoProfile -Command "Compress-Archive -Path 'PokeMultiLabs-Test\resources\app\*' -DestinationPath 'app-update.zip' -Force"
+
 echo ">> PRONTO"
-ls -lah PokeMultiLabs-Test.zip
+ls -lah PokeMultiLabs-Test.zip app-update.zip
