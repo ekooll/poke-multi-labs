@@ -552,8 +552,9 @@ ipcMain.handle('open-dashboard', () => {
   const b = win ? win.getBounds() : { x: 200, y: 120, width: 1200 }
   dashWin = new BrowserWindow({
     width: 440, height: 660, x: b.x + b.width - 480, y: b.y + 60,
-    frame: false, resizable: true, alwaysOnTop: true, skipTaskbar: true,
-    backgroundColor: '#0a0605', title: 'Dashboard das contas',
+    minWidth: 320, minHeight: 300,
+    frame: false, resizable: true, alwaysOnTop: false, skipTaskbar: false,
+    backgroundColor: '#0a0605', title: 'Vperts — Dashboard',
     webPreferences: { preload: path.join(__dirname, 'host-preload.js'), contextIsolation: true, nodeIntegration: false }
   })
   dashWin.setMenuBarVisibility(false)
@@ -561,6 +562,10 @@ ipcMain.handle('open-dashboard', () => {
   dashWin.on('closed', () => { dashWin = null })
   return true
 })
+
+// controles da janela do dashboard (frameless)
+ipcMain.handle('dashboard-pin', (e, on) => { if (dashWin && !dashWin.isDestroyed()) dashWin.setAlwaysOnTop(!!on); return !!on })
+ipcMain.handle('dashboard-minimize', () => { if (dashWin && !dashWin.isDestroyed()) dashWin.minimize(); return true })
 
 // --- Dashboard: le o estado (HUD) de cada conta via CDP ---
 ipcMain.handle('read-dashboard', async () => {

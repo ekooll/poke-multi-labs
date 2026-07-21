@@ -14,12 +14,19 @@
   html,body{margin:0;height:100%;overflow:hidden;color:var(--cream);
     font-family:Inter,system-ui,-apple-system,sans-serif;
     background:radial-gradient(120% 90% at 0% 0%,#1b0f0b 0%,#0a0605 60%)}
-  .bar{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;
-    border-bottom:1px solid var(--line);-webkit-app-region:drag;cursor:move}
-  .bar .t{font-weight:800;font-size:13px;color:var(--gold-soft);letter-spacing:.02em}
+  .bar{display:flex;align-items:center;justify-content:space-between;padding:7px 8px 7px 12px;
+    background:linear-gradient(90deg,#170807,#2a0f0b 50%,#170807);
+    border-bottom:1px solid rgba(226,75,53,.22);-webkit-app-region:drag;cursor:move}
+  .bar .t{display:flex;align-items:center;gap:9px}
+  .bar .logo{width:22px;height:22px;object-fit:contain;mix-blend-mode:screen;filter:drop-shadow(0 1px 3px rgba(0,0,0,.5))}
+  .bar .tt{display:flex;flex-direction:column;line-height:1.02;font-family:'Cinzel',Georgia,serif;font-weight:800;font-size:14px;color:var(--gold)}
+  .bar .tt small{font-family:Inter,sans-serif;font-weight:600;font-size:8.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.14em;margin-top:1px}
+  .wbtns{display:flex;gap:2px;-webkit-app-region:no-drag}
   .bar button{-webkit-app-region:no-drag;background:transparent;border:0;color:var(--faint);
-    font-size:14px;cursor:pointer;border-radius:6px;width:24px;height:24px}
-  .bar button:hover{color:var(--good);background:rgba(79,196,122,.12)}
+    font-size:13px;cursor:pointer;border-radius:6px;width:26px;height:26px;line-height:1}
+  .bar button:hover{color:var(--cream);background:rgba(255,255,255,.08)}
+  #pin.on{color:var(--gold);background:rgba(229,179,79,.16)}
+  #x:hover{color:#fff;background:var(--bad)}
   .wrap{height:calc(100% - 42px - 44px);overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:10px}
   .wrap::-webkit-scrollbar{width:7px}.wrap::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:4px}
   .cards{display:flex;flex-direction:column;gap:10px}
@@ -78,7 +85,14 @@
 </style>
 </head>
 <body>
-  <div class="bar"><span class="t">📊 Dashboard das contas</span><button id="x" title="Fechar">✕</button></div>
+  <div class="bar">
+    <span class="t"><img src="logo-vp.png" class="logo" alt="VP"><span class="tt">Dashboard<small>das contas</small></span></span>
+    <div class="wbtns">
+      <button id="pin" title="Fixar no topo">📌</button>
+      <button id="min" title="Minimizar">–</button>
+      <button id="x" title="Fechar">✕</button>
+    </div>
+  </div>
   <div class="wrap" id="wrap"><div class="na">carregando…</div></div>
   <div class="ft">
     <button id="rf">↻ Atualizar</button>
@@ -255,6 +269,9 @@
   }
   $('#rf').onclick = refresh
   $('#x').onclick = () => window.close()
+  $('#min').onclick = () => window.ml.dashboardMinimize()
+  let pinned = false
+  $('#pin').onclick = () => { pinned = !pinned; window.ml.dashboardPin(pinned); $('#pin').classList.toggle('on', pinned) }
   const lb = $('#lowball'); lb.value = LOW; lb.addEventListener('input', () => { LOW = parseInt(lb.value) || 0; localStorage.setItem('pml_lowball', LOW); refresh() })
   setInterval(() => { if ($('#auto').checked) refresh() }, 4000)
   refresh()
