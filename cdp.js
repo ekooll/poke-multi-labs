@@ -158,8 +158,15 @@ function _stateFn () {
     const monies = (body.match(/\$\s*[\d.]+/g) || []).map(s => parseInt(s.replace(/[^\d]/g, ''), 10)).filter(n => !isNaN(n))
     if (monies.length) money = Math.max.apply(null, monies)
 
+    // leitura ao vivo via localStorage.__vperts (populado por userscript/Gabriel).
+    // NAO e interceptacao — so leitura de um valor. Traz kills/xp/catches/shiny/ball-quebrada.
+    let live = null
+    try { const raw = localStorage.getItem('__vperts'); if (raw) { const w = JSON.parse(raw); live = { kills: w.kills, xp: w.xp, catches: w.catches, shinies: w.shinies, brokenShiny: w.brokenShiny, msgs: w.msgs } } } catch (e) {}
+    const shinies = live && live.shinies != null ? live.shinies : null
+    const brokenShiny = live && live.brokenShiny != null ? live.brokenShiny : null
+
     const ballsTotal = Object.values(balls).reduce((a, b) => a + (b || 0), 0)
-    return { ok: true, ts: Date.now(), name, level, zone, active, hp, hpMax, hunt: { seen: huntSeen, searching, wild, timer }, balls, ballsTotal, potions, revives, money, an: hasAn ? an : null }
+    return { ok: true, ts: Date.now(), name, level, zone, active, hp, hpMax, hunt: { seen: huntSeen, searching, wild, timer }, balls, ballsTotal, potions, revives, money, shinies, brokenShiny, live, an: hasAn ? an : null }
   } catch (e) { return { ok: false, err: String((e && e.message) || e) } }
 }
 const STATE_EXPR = '(' + _stateFn.toString() + ')()'
