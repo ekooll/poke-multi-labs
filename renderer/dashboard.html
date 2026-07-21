@@ -22,24 +22,24 @@
   .bar button:hover{color:var(--good);background:rgba(79,196,122,.12)}
   .wrap{height:calc(100% - 42px - 44px);overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:10px}
   .wrap::-webkit-scrollbar{width:7px}.wrap::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:4px}
+  .cards{display:flex;flex-direction:column;gap:10px}
 
-  /* totais */
   .totals{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
   .tile{background:#0d0807;border:1px solid var(--line);border-radius:10px;padding:8px 9px;text-align:center}
+  .tile[hidden]{display:none}
   .tile .k{font-size:9px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
   .tile .v{font-size:16px;font-weight:800;margin-top:2px;color:var(--cream)}
   .tile.gold .v{color:var(--gold)} .tile.good .v{color:var(--good)} .tile.warn .v{color:var(--warn)}
 
-  /* grafico loot por conta */
   .chart{background:#0d0807;border:1px solid var(--line);border-radius:11px;padding:10px 11px}
+  .chart[hidden]{display:none}
   .chart .ct{font-size:9.5px;color:var(--gold-soft);text-transform:uppercase;letter-spacing:.1em;font-weight:800;margin-bottom:8px}
   .crow{display:grid;grid-template-columns:70px 1fr auto;align-items:center;gap:8px;margin-top:5px}
   .crow .cn{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ctrack{height:9px;background:#160d0a;border-radius:5px;overflow:hidden}
-  .cfill{height:100%;background:linear-gradient(90deg,var(--gold-soft),var(--gold));border-radius:5px}
+  .cfill{height:100%;background:linear-gradient(90deg,var(--gold-soft),var(--gold));border-radius:5px;transition:width .5s ease}
   .crow .cv{font-size:11px;font-weight:700;color:var(--good)}
 
-  /* card por conta */
   .card{border:1px solid var(--line);border-radius:11px;background:linear-gradient(160deg,rgba(30,18,16,.9),rgba(13,8,7,.9));
     padding:10px 11px;display:flex;flex-direction:column;gap:7px}
   .card.down{border-color:rgba(226,75,53,.55)}
@@ -50,20 +50,22 @@
   .b-ok{color:#0c1a10;background:var(--good)}
   .b-warn{color:#1a1405;background:var(--warn)}
   .b-down{color:#fff;background:var(--bad)}
-  .sub{font-size:11px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 10px}
-  .sub b{color:var(--gold-soft);font-weight:600}
+  .sub{font-size:11px;color:var(--muted)}
+  .sub[hidden]{display:none}
   .hpbar{height:8px;border-radius:5px;background:#0d0807;border:1px solid var(--line);overflow:hidden}
-  .hpfill{height:100%;background:linear-gradient(90deg,#3ae07c,#1fb959);border-radius:5px 0 0 5px}
+  .hpbar[hidden]{display:none}
+  .hpfill{height:100%;background:linear-gradient(90deg,#3ae07c,#1fb959);border-radius:5px 0 0 5px;transition:width .5s ease}
   .pills{display:flex;gap:6px;flex-wrap:wrap}
   .pill{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--cream);
     background:#0d0807;border:1px solid var(--line);border-radius:8px;padding:4px 8px}
+  .pill[hidden]{display:none}
   .pill i{color:var(--faint);font-style:normal;font-weight:600}
   .pill.zero{border-color:rgba(226,75,53,.5);color:#ff9d8d}
   .analyzer{border-top:1px dashed var(--line);padding-top:7px;display:flex;flex-wrap:wrap;gap:5px 8px}
+  .analyzer[hidden]{display:none}
   .stat{font-size:10.5px;color:var(--muted)}
   .stat b{color:var(--cream);font-weight:700}
   .stat.loot b{color:var(--good)} .stat.saldo b{color:var(--gold)}
-  .anhint{font-size:10px;color:var(--faint);font-style:italic}
   .na{color:var(--faint);font-style:italic;font-size:12px;text-align:center;padding:18px}
 
   .ft{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;
@@ -92,9 +94,10 @@
   const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(Number(n || 0)).toLocaleString('pt-BR')
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
   const BALL_LABELS = { poke: 'Poké', ultra: 'Ultra', idle: 'Idle', great: 'Great', master: 'Master' }
+  const BALL_ORDER = ['poke', 'ultra', 'idle', 'great', 'master']
   let busy = false
-
   let LOW = parseInt(localStorage.getItem('pml_lowball') || '500') || 500
+
   function alertOf (st) {
     if (!st || st.ok === false) return { cls: 'down', badge: 'b-down', txt: '🔴 Desconectado' }
     if (st.balls && Object.keys(st.balls).length) {
@@ -105,115 +108,149 @@
     return { cls: '', badge: 'b-ok', txt: '🟢 Na hunt' }
   }
 
-  // income/h por DELTA do saldo (sem Hunt Analyzer). reseta quando o dinheiro cai (gastou/nova sessao)
+  // income/h por delta do saldo (sem Hunt Analyzer)
   const HIST = {}
-  function incomeH (num, money, ts) {
-    if (money == null) return null
+  function incomeH (num, mny, ts) {
+    if (mny == null) return null
     const h = HIST[num]
-    if (!h || money < h.m0) { HIST[num] = { t0: ts, m0: money }; return null }
+    if (!h || mny < h.m0) { HIST[num] = { t0: ts, m0: mny }; return null }
     const dt = (ts - h.t0) / 3600000
     if (dt < 0.005) return null
-    return (money - h.m0) / dt
+    return (mny - h.m0) / dt
   }
 
-  function card (row) {
-    const st = row.state
-    const a = alertOf(st)
-    let inner = ''
+  // ---------- layout construído UMA vez (evita piscar) ----------
+  let layoutKey = null
+  const cardEls = {}
+  function cardSkeleton () {
+    return '<div class="chead"><span class="cname"></span><span class="badge"></span></div>' +
+      '<div class="sub c-info"></div>' +
+      '<div class="hpbar c-hpbar" hidden><div class="hpfill"></div></div>' +
+      '<div class="sub c-hpline" hidden></div>' +
+      '<div class="pills c-pills">' +
+        BALL_ORDER.map(k => '<span class="pill pb-' + k + '" hidden><i>' + BALL_LABELS[k] + '</i><b></b></span>').join('') +
+        '<span class="pill pb-potions" hidden><i>Potions</i><b></b></span>' +
+        '<span class="pill pb-revives" hidden><i>Revives</i><b></b></span>' +
+        '<span class="pill pb-shiny" hidden style="border-color:rgba(229,179,79,.55);color:var(--gold)"><i>✨ Shiny</i><b></b></span>' +
+        '<span class="pill pb-broken" hidden style="border-color:rgba(226,75,53,.5);color:#ff9d8d"><i>💔 Ball quebrada</i><b></b></span>' +
+      '</div>' +
+      '<div class="analyzer c-live" hidden>' +
+        '<span class="stat">⚔️ <b class="l-kills"></b> kills</span>' +
+        '<span class="stat loot">🎯 <b class="l-caught"></b> capt.</span>' +
+        '<span class="stat">❌ <b class="l-broken"></b> perdidas</span>' +
+      '</div>' +
+      '<div class="analyzer c-an" hidden></div>'
+  }
+  function buildLayout (results) {
+    const key = results.map(r => r.num).join(',')
+    if (key === layoutKey) return
+    layoutKey = key
+    for (const k in cardEls) delete cardEls[k]
+    $('#wrap').innerHTML =
+      '<div class="totals">' +
+        '<div class="tile"><div class="k">Contas</div><div class="v t-contas"></div></div>' +
+        '<div class="tile good"><div class="k">Na hunt</div><div class="v t-hunt"></div></div>' +
+        '<div class="tile warn"><div class="k">Alertas</div><div class="v t-alert"></div></div>' +
+        '<div class="tile gold t-loot-tile" hidden><div class="k">Loot total</div><div class="v t-loot"></div></div>' +
+        '<div class="tile good t-cash-tile" hidden><div class="k">Cash/h</div><div class="v t-cash"></div></div>' +
+      '</div>' +
+      '<div class="chart t-chart" hidden><div class="ct">Loot por conta</div><div class="t-chart-rows"></div></div>' +
+      '<div class="cards"></div>'
+    const cardsDiv = $('#wrap .cards')
+    results.forEach(r => {
+      const el = document.createElement('div')
+      el.className = 'card'; el.dataset.num = r.num
+      el.innerHTML = cardSkeleton()
+      el.querySelector('.cname').textContent = nameOf(r.num)
+      cardsDiv.appendChild(el); cardEls[r.num] = el
+    })
+  }
+
+  const setT = (el, sel, val) => { const n = el.querySelector(sel); if (n) n.textContent = val }
+  const show = (el, sel, s) => { const n = el.querySelector(sel); if (n) n.hidden = !s }
+
+  function updateCard (el, row) {
+    const st = row.state, a = alertOf(st)
+    el.className = 'card ' + a.cls
+    const b = el.querySelector('.badge'); b.className = 'badge ' + a.badge; b.textContent = a.txt
     if (!st || st.ok === false) {
-      inner = '<div class="sub"><span>' + (row.embedded ? 'encaixada, mas o jogo não respondeu' : 'não encaixada') + ' — pode ser jogo/net caído.</span></div>'
-    } else {
-      const lvl = st.level != null ? 'Nível ' + st.level : ''
-      inner += '<div class="sub">' +
-        (lvl ? '<span><b>' + lvl + '</b></span>' : '') +
-        (st.zone ? '<span>📍 ' + esc(st.zone) + '</span>' : '') +
-        (st.active ? '<span>🐾 ' + esc(st.active) + '</span>' : '') + '</div>'
-      if (st.hp != null && st.hpMax) {
-        const pct = Math.max(0, Math.min(100, st.hp / st.hpMax * 100))
-        inner += '<div class="hpbar"><div class="hpfill" style="width:' + pct.toFixed(0) + '%"></div></div>' +
-          '<div class="sub"><span>HP <b>' + fmt(st.hp) + '</b> / ' + fmt(st.hpMax) + '</span>' +
-          (st.hunt && st.hunt.timer ? '<span>⏱ ' + esc(st.hunt.timer) + '</span>' : '') +
-          (st.hunt && st.hunt.wild != null ? '<span>' + st.hunt.wild + ' selvagem</span>' : '') + '</div>'
-      }
-      const bkeys = st.balls ? Object.keys(st.balls) : []
-      const pills = bkeys.map(k => '<span class="pill' + (st.balls[k] === 0 ? ' zero' : '') + '"><i>' + (BALL_LABELS[k] || k) + '</i>' + fmt(st.balls[k]) + '</span>')
-        .concat(st.potions != null ? ['<span class="pill"><i>Potions</i>' + fmt(st.potions) + '</span>'] : [])
-        .concat(st.revives != null ? ['<span class="pill"><i>Revives</i>' + fmt(st.revives) + '</span>'] : [])
-        .concat(st.shinies != null ? ['<span class="pill" style="border-color:rgba(229,179,79,.55);color:var(--gold)"><i>✨ Shiny</i>' + fmt(st.shinies) + '</span>'] : [])
-        .concat(st.brokenShiny != null ? ['<span class="pill" style="border-color:rgba(226,75,53,.5);color:#ff9d8d"><i>💔 Ball quebrada</i>' + fmt(st.brokenShiny) + '</span>'] : [])
-      if (pills.length) inner += '<div class="pills">' + pills.join('') + '</div>'
-      // stats ao vivo do WebSocket (via localStorage.__vperts)
-      if (st.live && (st.live.kills != null || st.live.caught != null)) {
-        const L = st.live, lp = []
-        if (L.kills != null) lp.push('<span class="stat">⚔️ <b>' + fmt(L.kills) + '</b> kills</span>')
-        if (L.caught != null) lp.push('<span class="stat loot">🎯 <b>' + fmt(L.caught) + '</b> capt.</span>')
-        if (L.brokenBalls != null) lp.push('<span class="stat">❌ <b>' + fmt(L.brokenBalls) + '</b> balls perdidas</span>')
-        if (lp.length) inner += '<div class="analyzer">' + lp.join('') + '</div>'
-      }
-      // Hunt Analyzer embutido
-      if (st.an) {
-        const A = st.an, parts = []
-        if (A.loot != null) parts.push('<span class="stat loot">💰 Loot <b>' + money(A.loot) + '</b></span>')
-        if (A.cashH != null) parts.push('<span class="stat">📈 <b>' + money(A.cashH) + '</b>/h</span>')
-        if (A.kills != null) parts.push('<span class="stat">⚔️ <b>' + fmt(A.kills) + '</b></span>')
-        if (A.caught != null) parts.push('<span class="stat">🎯 <b>' + fmt(A.caught) + '</b> capt.</span>')
-        if (A.saldo != null) parts.push('<span class="stat saldo">Saldo <b>' + money(A.saldo) + '</b></span>')
-        inner += '<div class="analyzer">' + parts.join('') + '</div>'
-      } else if (row.measured != null) {
-        inner += '<div class="analyzer"><span class="stat loot">📈 ~<b>' + money(row.measured) + '</b>/h <span style="color:var(--faint)">(medido, sem analyzer)</span></span></div>'
-      } else {
-        inner += '<div class="analyzer"><span class="anhint">Medindo loot/h… (ou abra o Hunt Analyzer pra loot/kills/saldo)</span></div>'
-      }
+      setT(el, '.c-info', row.embedded ? 'jogo não respondeu (caiu?)' : 'não encaixada')
+      show(el, '.c-hpbar', false); show(el, '.c-hpline', false); show(el, '.c-live', false); show(el, '.c-an', false)
+      el.querySelectorAll('.c-pills .pill').forEach(p => { p.hidden = true }); return
     }
-    return '<div class="card ' + a.cls + '">' +
-      '<div class="chead"><span class="cname">' + esc(nameOf(row.num)) + '</span>' +
-      '<span class="badge ' + a.badge + '">' + a.txt + '</span></div>' + inner + '</div>'
+    const parts = []
+    if (st.level != null) parts.push('Nível ' + st.level)
+    if (st.zone) parts.push('📍 ' + st.zone)
+    if (st.active) parts.push('🐾 ' + st.active)
+    setT(el, '.c-info', parts.join('  ·  '))
+    if (st.hp != null && st.hpMax) {
+      show(el, '.c-hpbar', true); show(el, '.c-hpline', true)
+      el.querySelector('.hpfill').style.width = Math.max(0, Math.min(100, st.hp / st.hpMax * 100)).toFixed(0) + '%'
+      let hl = 'HP ' + fmt(st.hp) + ' / ' + fmt(st.hpMax)
+      if (st.hunt && st.hunt.timer) hl += '   ⏱ ' + st.hunt.timer
+      if (st.hunt && st.hunt.wild != null) hl += '   ' + st.hunt.wild + ' selvagem'
+      setT(el, '.c-hpline', hl)
+    } else { show(el, '.c-hpbar', false); show(el, '.c-hpline', false) }
+    const balls = st.balls || {}
+    BALL_ORDER.forEach(k => {
+      const p = el.querySelector('.pb-' + k)
+      if (balls[k] != null) { p.hidden = false; p.classList.toggle('zero', balls[k] === 0); p.querySelector('b').textContent = fmt(balls[k]) } else p.hidden = true
+    })
+    const opt = (sel, val) => { const p = el.querySelector(sel); if (val != null) { p.hidden = false; p.querySelector('b').textContent = fmt(val) } else p.hidden = true }
+    opt('.pb-potions', st.potions); opt('.pb-revives', st.revives); opt('.pb-shiny', st.shinies); opt('.pb-broken', st.brokenShiny)
+    if (st.live && (st.live.kills != null || st.live.caught != null)) {
+      show(el, '.c-live', true)
+      setT(el, '.l-kills', fmt(st.live.kills)); setT(el, '.l-caught', fmt(st.live.caught)); setT(el, '.l-broken', fmt(st.live.brokenBalls))
+    } else show(el, '.c-live', false)
+    let anHtml = ''
+    if (st.an) {
+      const A = st.an, p = []
+      if (A.loot != null) p.push('<span class="stat loot">💰 Loot <b>' + money(A.loot) + '</b></span>')
+      if (A.cashH != null) p.push('<span class="stat">📈 <b>' + money(A.cashH) + '</b>/h</span>')
+      if (A.saldo != null) p.push('<span class="stat saldo">Saldo <b>' + money(A.saldo) + '</b></span>')
+      anHtml = p.join('')
+    } else if (row.measured != null) {
+      anHtml = '<span class="stat loot">📈 ~<b>' + money(row.measured) + '</b>/h <span style="color:var(--faint)">(medido)</span></span>'
+    }
+    const an = el.querySelector('.c-an')
+    if (an.dataset.h !== anHtml) { an.dataset.h = anHtml; an.innerHTML = anHtml; an.hidden = !anHtml }
   }
 
-  function totals (results) {
-    let inHunt = 0, alerts = 0, loot = 0, cashH = 0, hasLoot = false, hasCashH = false
-    for (const r of results) {
+  function updateTotals (results) {
+    let inHunt = 0, alerts = 0, loot = 0, cashH = 0, hasLoot = false, hasCash = false
+    results.forEach(r => {
       const st = r.state, a = alertOf(st)
-      if (a.badge === 'b-ok') inHunt++
-      if (a.badge !== 'b-ok') alerts++
+      if (a.badge === 'b-ok') inHunt++; else alerts++
       if (st && st.an && st.an.loot != null) { loot += st.an.loot; hasLoot = true }
       const ch = (st && st.an && st.an.cashH != null) ? st.an.cashH : (r.measured != null ? r.measured : null)
-      if (ch != null) { cashH += ch; hasCashH = true }
-    }
-    let html = '<div class="totals">' +
-      '<div class="tile"><div class="k">Contas</div><div class="v">' + results.length + '</div></div>' +
-      '<div class="tile good"><div class="k">Na hunt</div><div class="v">' + inHunt + '</div></div>' +
-      '<div class="tile warn"><div class="k">Alertas</div><div class="v">' + alerts + '</div></div>' +
-      (hasLoot ? '<div class="tile gold"><div class="k">Loot total</div><div class="v">' + money(loot) + '</div></div>' : '') +
-      (hasCashH ? '<div class="tile good"><div class="k">Cash/h</div><div class="v">' + money(cashH) + '</div></div>' : '') +
-      '</div>'
-    // grafico loot por conta
+      if (ch != null) { cashH += ch; hasCash = true }
+    })
+    setT(document, '.t-contas', results.length); setT(document, '.t-hunt', inHunt); setT(document, '.t-alert', alerts)
+    const lt = $('.t-loot-tile'); if (hasLoot) { lt.hidden = false; setT(document, '.t-loot', money(loot)) } else lt.hidden = true
+    const cta = $('.t-cash-tile'); if (hasCash) { cta.hidden = false; setT(document, '.t-cash', money(cashH)) } else cta.hidden = true
     const withLoot = results.filter(r => r.state && r.state.an && r.state.an.loot != null)
-    if (withLoot.length) {
-      const max = Math.max(...withLoot.map(r => r.state.an.loot), 1)
-      html += '<div class="chart"><div class="ct">Loot por conta</div>' +
-        withLoot.map(r => {
-          const w = Math.max(3, r.state.an.loot / max * 100)
-          return '<div class="crow"><span class="cn">' + esc(nameOf(r.num)) + '</span>' +
-            '<div class="ctrack"><div class="cfill" style="width:' + w.toFixed(0) + '%"></div></div>' +
-            '<span class="cv">' + money(r.state.an.loot) + '</span></div>'
-        }).join('') + '</div>'
-    }
-    return html
+    const chart = $('.t-chart')
+    if (!withLoot.length) { chart.hidden = true; return }
+    const max = Math.max.apply(null, withLoot.map(r => r.state.an.loot).concat([1]))
+    const html = withLoot.map(r => { const w = Math.max(3, r.state.an.loot / max * 100); return '<div class="crow"><span class="cn">' + esc(nameOf(r.num)) + '</span><div class="ctrack"><div class="cfill" style="width:' + w.toFixed(0) + '%"></div></div><span class="cv">' + money(r.state.an.loot) + '</span></div>' }).join('')
+    const rows = $('.t-chart-rows'); if (rows.dataset.h !== html) { rows.dataset.h = html; rows.innerHTML = html }
+    chart.hidden = false
   }
 
   async function refresh () {
     if (busy) return; busy = true
     try {
       const r = await window.ml.readDashboard()
-      if (!r || !r.available) { $('#wrap').innerHTML = '<div class="na">Leitor indisponível nesta versão.</div>'; return }
-      if (!r.results || !r.results.length) { $('#wrap').innerHTML = '<div class="na">Nenhuma conta aberta.</div>'; return }
+      if (!r || !r.available) { $('#wrap').innerHTML = '<div class="na">Leitor indisponível nesta versão.</div>'; layoutKey = null; return }
+      if (!r.results || !r.results.length) { $('#wrap').innerHTML = '<div class="na">Nenhuma conta aberta.</div>'; layoutKey = null; return }
       const now = Date.now()
       r.results.forEach(row => { row.measured = (row.state && row.state.ok) ? incomeH(row.num, row.state.money, row.state.ts || now) : null })
-      $('#wrap').innerHTML = totals(r.results) + r.results.map(card).join('')
+      buildLayout(r.results)
+      updateTotals(r.results)
+      r.results.forEach(row => { const el = cardEls[row.num]; if (el) updateCard(el, row) })
       const d = new Date()
       $('#stamp').textContent = 'atualizado ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0')
-    } catch (e) { $('#wrap').innerHTML = '<div class="na">Erro: ' + esc(e.message) + '</div>' }
+    } catch (e) { $('#wrap').innerHTML = '<div class="na">Erro: ' + esc(e.message) + '</div>'; layoutKey = null }
     finally { busy = false }
   }
   $('#rf').onclick = refresh
