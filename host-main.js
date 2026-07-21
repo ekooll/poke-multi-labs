@@ -138,7 +138,13 @@ function hostHwndStr () {
 function currentHwnds () { return slots.map(s => s.hwnd).filter(Boolean) }
 // arquivo lido pelo focuswatch.ps1 (foco ao clicar): host + paineis atuais
 const hwndsFile = () => path.join(LOGDIR, 'hwnds.json')
-function writeHwnds () { try { if (win) fs.writeFileSync(hwndsFile(), JSON.stringify({ host: hostHwndStr(), hwnds: currentHwnds() })) } catch {} }
+function writeHwnds () {
+  try {
+    if (!win) return
+    const active = (solo >= 0 && slots[solo]) ? slots[solo].hwnd : (currentHwnds()[0] || null)
+    fs.writeFileSync(hwndsFile(), JSON.stringify({ host: hostHwndStr(), hwnds: currentHwnds(), active }))
+  } catch {}
+}
 // no .exe empacotado os .ps1 ficam em app.asar.unpacked (o PowerShell nao le de dentro do asar)
 function scriptPath (name) { return path.join(__dirname, name).replace('app.asar', 'app.asar.unpacked') }
 
@@ -154,6 +160,49 @@ function runWin32 (payload) {
     ps.on('close', c => { dlog('runWin32 close code=' + c + ' out=' + out.trim() + ' err=' + err.trim().slice(0, 300)); try { resolve(JSON.parse(out.trim())) } catch { resolve(null) } })
     ps.stdin.write(JSON.stringify(payload)); ps.stdin.end()
   })
+}
+
+// ---- servidor win32 persistente: compila o Add-Type 1x e atende comandos em ~5ms
+// (antes cada troca gastava ~750-1100ms recompilando -> era o "delay/lag" das trocas)
+let win32proc = null
+let win32outbuf = ''
+const win32waiters = []
+function startWin32Server () {
+  if (win32proc) return
+  try {
+    win32proc = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath('win32.ps1'), '-server'], { stdio: ['pipe', 'pipe', 'ignore'] })
+    win32proc.stdout.setEncoding('utf8')
+    win32proc.stdout.on('data', d => {
+      win32outbuf += d
+      let idx
+      while ((idx = win32outbuf.indexOf('\n')) >= 0) {
+        const line = win32outbuf.slice(0, idx).trim()
+        win32outbuf = win32outbuf.slice(idx + 1)
+        if (!line) continue
+        const w = win32waiters.shift()
+        if (w) { try { w(JSON.parse(line)) } catch { w(null) } }
+      }
+    })
+    win32proc.on('exit', () => { win32proc = null; while (win32waiters.length) win32waiters.shift()(null) })
+    win32proc.on('error', e => { dlog('!! win32 server ' + e.message); win32proc = null })
+    dlog('win32 server iniciado')
+  } catch (e) { dlog('!! startWin32Server ' + e.message) }
+}
+function stopWin32Server () { try { if (win32proc) { win32proc.stdin.end(); win32proc.kill() } } catch {} win32proc = null }
+
+// envia comando ao server e espera 1 linha JSON. Serializa (1 por vez, FIFO).
+// Cai no runWin32 avulso se o server nao estiver de pe.
+let win32chain = Promise.resolve()
+function win32cmd (payload) {
+  const run = () => new Promise(resolve => {
+    if (!win32proc || !win32proc.stdin.writable) { runWin32(payload).then(resolve); return }
+    win32waiters.push(resolve)
+    try { win32proc.stdin.write(JSON.stringify(payload) + '\n') }
+    catch (e) { win32waiters.pop(); runWin32(payload).then(resolve) }
+  })
+  const p = win32chain.then(run, run)
+  win32chain = p.then(() => {}, () => {})
+  return p
 }
 
 function spawnChrome (profile, port) {
@@ -220,7 +269,7 @@ async function addAccount () {
   await delay(250)
   spawnChrome(profile, port)
   dlog('addAccount num=' + num)
-  const res = await runWin32({ hostHwnd: hostHwndStr(), topPx: topPx(), leftPx: leftPx(), mode: layoutMode, solo: -1, profiles: [profile] })
+  const res = await win32cmd({ hostHwnd: hostHwndStr(), topPx: topPx(), leftPx: leftPx(), mode: layoutMode, solo: -1, profiles: [profile] })
   if (res && res.hwnds && res.hwnds[0]) slot.hwnd = res.hwnds[0]
   // se estava em modo FOCO (solo), mostra a conta recem-aberta (senao o layout
   // reaplicava o solo antigo e "voltava" pra conta anterior -> efeito "pisca").
@@ -250,7 +299,7 @@ async function setCount (target) {
       while (slots.length > target) await closeAccountAt(slots.length - 1)
       const s = slots[slots.length - 1]
       if (s && s.port && slots.length) await cdp.waitReady(s.port, 3500)
-    }, { inMs: 120, outMs: 280 })
+    }, { inMs: 60, outMs: 160 })
   } catch (e) { dlog('!! setCount ERRO ' + e.message + ' | ' + (e.stack || '')) } finally { busy = false }
 }
 
@@ -261,12 +310,12 @@ async function publicAdd () {
       await addAccount()
       const s = slots[slots.length - 1]                 // conta recem-aberta
       if (s && s.port) await cdp.waitReady(s.port, 3500) // segura a cortina ate o jogo pintar (sem flash branco)
-    }, { inMs: 120, outMs: 280 })
+    }, { inMs: 60, outMs: 160 })
   } catch (e) { dlog('!! add ' + e.message) } finally { busy = false }
 }
 async function publicClose (idx) {
   if (busy || !win) return; busy = true
-  try { await withCurtain(() => closeAccountAt(idx), { inMs: 60, outMs: 200 }) } catch (e) { dlog('!! close ' + e.message) } finally { busy = false }
+  try { await withCurtain(() => closeAccountAt(idx), { inMs: 0, outMs: 120 }) } catch (e) { dlog('!! close ' + e.message) } finally { busy = false }
 }
 
 // ---- atalhos globais (funcionam mesmo com o foco dentro do Chrome encaixado) ----
@@ -276,7 +325,7 @@ function focusByNum (n) {
   let target
   if (n === 0) target = -1
   else { const idx = slots.findIndex(s => s.num === n); if (idx < 0) return; target = idx }
-  withCurtain(() => { solo = target; return applyLayout() }, { inMs: 40, outMs: 190 }).then(() => pushState())
+  withCurtain(() => { solo = target; return applyLayout() }, { inMs: 0, outMs: 110 }).then(() => pushState())
 }
 function registerShortcuts () {
   try {
@@ -344,11 +393,22 @@ async function withCurtain (fn, opts) {
 
 function scheduleRelayout () { clearTimeout(relayoutTimer); relayoutTimer = setTimeout(applyLayout, 180) }
 
+// quando o app volta do alt-tab, o Chrome encaixado perde a ativacao e o menu do
+// jogo fica "morto". Aqui devolvemos o foco a janela visivel (sem reparent = sem flicker).
+let refocusTimer = null
+function refocusVisible () {
+  if (!win || !slots.length) return
+  const hwnd = (solo >= 0 && slots[solo]) ? slots[solo].hwnd : currentHwnds()[0]
+  if (!hwnd) return
+  win32cmd({ refocus: true, hostHwnd: hostHwndStr(), focusHwnd: hwnd })
+}
+function scheduleRefocus () { clearTimeout(refocusTimer); refocusTimer = setTimeout(refocusVisible, 130) }
+
 async function applyLayout () {
   if (!win) return
   const hs = currentHwnds()
   if (!hs.length) { writeHwnds(); return }
-  await runWin32({ hostHwnd: hostHwndStr(), topPx: topPx(), leftPx: leftPx(), mode: layoutMode, solo, hwnds: hs })
+  await win32cmd({ hostHwnd: hostHwndStr(), topPx: topPx(), leftPx: leftPx(), mode: layoutMode, solo, hwnds: hs })
   writeHwnds()   // atualiza a lista pro vigia de foco-ao-clicar
 }
 
@@ -420,7 +480,8 @@ async function enterApp (token, email) {
   dlog('enterApp email=' + email + ' telas=' + licensedTelas + ' lic=' + JSON.stringify(lic))
   win.loadFile(path.join(__dirname, 'renderer', 'host-toolbar.html'))
   win.webContents.once('did-finish-load', async () => {
-    ensureOverlay()   // pre-aquece a cortina (curtain.html carregado antes da 1a transicao)
+    startWin32Server()   // compila o Add-Type 1x -> trocas viram ~5ms
+    ensureOverlay()      // pre-aquece a cortina (curtain.html carregado antes da 1a transicao)
     await setCount(1); startPopupWatch(); registerShortcuts(); startFocusWatch()
     if (process.env.PMLABS_SELFTEST) runSelfTest()
   })
@@ -437,7 +498,9 @@ function createWindow () {
   win.setMenuBarVisibility(false)
   win.maximize()   // abre maximizada (pediram tela cheia do launcher)
   win.on('resize', () => scheduleRelayout())
-  win.on('closed', () => { win = null; try { lootWin && lootWin.close() } catch {} stopPopupWatch(); stopFocusWatch(); killAll() })
+  win.on('focus', () => scheduleRefocus())   // voltou do alt-tab -> reativa a janela do jogo
+
+  win.on('closed', () => { win = null; try { lootWin && lootWin.close() } catch {} stopPopupWatch(); stopFocusWatch(); stopWin32Server(); killAll() })
 
   // boot: restaura sessao salva -> entra direto; senao mostra login
   refreshToken()
@@ -449,8 +512,8 @@ function createWindow () {
 ipcMain.handle('relaunch', async (_e, n) => { await setCount(n); return slots.length })
 ipcMain.handle('add-account', async () => { await publicAdd(); return slots.length })
 ipcMain.handle('close-account', async (_e, idx) => { await publicClose(idx); return slots.length })
-ipcMain.on('set-layout', (_e, m) => { if (['grid', 'columns', 'rows'].includes(m)) withCurtain(() => { layoutMode = m; return applyLayout() }, { inMs: 40, outMs: 190 }) })
-ipcMain.on('set-solo', (_e, idx) => { withCurtain(() => { solo = (idx == null ? -1 : idx); return applyLayout() }, { inMs: 40, outMs: 190 }) })
+ipcMain.on('set-layout', (_e, m) => { if (['grid', 'columns', 'rows'].includes(m)) withCurtain(() => { layoutMode = m; return applyLayout() }, { inMs: 0, outMs: 110 }) })
+ipcMain.on('set-solo', (_e, idx) => { withCurtain(() => { solo = (idx == null ? -1 : idx); return applyLayout() }, { inMs: 0, outMs: 110 }) })
 ipcMain.on('set-sidebar', (_e, collapsed) => { sidebarCollapsed = !!collapsed; applyLayout() })
 ipcMain.handle('get-state', () => ({ count: slots.length, embedded: currentHwnds().length, mode: layoutMode, solo, maxTelas: licensedTelas, email: authEmail }))
 

@@ -1,6 +1,6 @@
 {
-  "version": "0.4.2",
-  "notes": "Botao Atualizar agora baixa o app-update.zip completo (traz ate modulos novos, ex ws), com fallback pros arquivos avulsos.",
+  "version": "0.4.4",
+  "notes": "Trocas de tela ~150x mais rapidas (PowerShell persistente), refoco robusto ao voltar do alt-tab (via focuswatch) e fades mais secos.",
   "files": [
     "host-main.js",
     "host-preload.js",
