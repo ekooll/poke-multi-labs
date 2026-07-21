@@ -105,6 +105,17 @@
     return { cls: '', badge: 'b-ok', txt: '🟢 Na hunt' }
   }
 
+  // income/h por DELTA do saldo (sem Hunt Analyzer). reseta quando o dinheiro cai (gastou/nova sessao)
+  const HIST = {}
+  function incomeH (num, money, ts) {
+    if (money == null) return null
+    const h = HIST[num]
+    if (!h || money < h.m0) { HIST[num] = { t0: ts, m0: money }; return null }
+    const dt = (ts - h.t0) / 3600000
+    if (dt < 0.005) return null
+    return (money - h.m0) / dt
+  }
+
   function card (row) {
     const st = row.state
     const a = alertOf(st)
@@ -140,8 +151,10 @@
         if (A.caught != null) parts.push('<span class="stat">🎯 <b>' + fmt(A.caught) + '</b> capt.</span>')
         if (A.saldo != null) parts.push('<span class="stat saldo">Saldo <b>' + money(A.saldo) + '</b></span>')
         inner += '<div class="analyzer">' + parts.join('') + '</div>'
+      } else if (row.measured != null) {
+        inner += '<div class="analyzer"><span class="stat loot">📈 ~<b>' + money(row.measured) + '</b>/h <span style="color:var(--faint)">(medido, sem analyzer)</span></span></div>'
       } else {
-        inner += '<div class="analyzer"><span class="anhint">Abra o Hunt Analyzer nesta conta pra ver loot/kills/saldo.</span></div>'
+        inner += '<div class="analyzer"><span class="anhint">Medindo loot/h… (ou abra o Hunt Analyzer pra loot/kills/saldo)</span></div>'
       }
     }
     return '<div class="card ' + a.cls + '">' +
@@ -150,19 +163,21 @@
   }
 
   function totals (results) {
-    let inHunt = 0, alerts = 0, loot = 0, cashH = 0, hasLoot = false
+    let inHunt = 0, alerts = 0, loot = 0, cashH = 0, hasLoot = false, hasCashH = false
     for (const r of results) {
       const st = r.state, a = alertOf(st)
       if (a.badge === 'b-ok') inHunt++
       if (a.badge !== 'b-ok') alerts++
-      if (st && st.an) { if (st.an.loot != null) { loot += st.an.loot; hasLoot = true } ; if (st.an.cashH != null) cashH += st.an.cashH }
+      if (st && st.an && st.an.loot != null) { loot += st.an.loot; hasLoot = true }
+      const ch = (st && st.an && st.an.cashH != null) ? st.an.cashH : (r.measured != null ? r.measured : null)
+      if (ch != null) { cashH += ch; hasCashH = true }
     }
     let html = '<div class="totals">' +
       '<div class="tile"><div class="k">Contas</div><div class="v">' + results.length + '</div></div>' +
       '<div class="tile good"><div class="k">Na hunt</div><div class="v">' + inHunt + '</div></div>' +
       '<div class="tile warn"><div class="k">Alertas</div><div class="v">' + alerts + '</div></div>' +
-      (hasLoot ? '<div class="tile gold"><div class="k">Loot total</div><div class="v">' + money(loot) + '</div></div>' +
-                 '<div class="tile good"><div class="k">Cash/h</div><div class="v">' + money(cashH) + '</div></div>' : '') +
+      (hasLoot ? '<div class="tile gold"><div class="k">Loot total</div><div class="v">' + money(loot) + '</div></div>' : '') +
+      (hasCashH ? '<div class="tile good"><div class="k">Cash/h</div><div class="v">' + money(cashH) + '</div></div>' : '') +
       '</div>'
     // grafico loot por conta
     const withLoot = results.filter(r => r.state && r.state.an && r.state.an.loot != null)
@@ -185,6 +200,8 @@
       const r = await window.ml.readDashboard()
       if (!r || !r.available) { $('#wrap').innerHTML = '<div class="na">Leitor indisponível nesta versão.</div>'; return }
       if (!r.results || !r.results.length) { $('#wrap').innerHTML = '<div class="na">Nenhuma conta aberta.</div>'; return }
+      const now = Date.now()
+      r.results.forEach(row => { row.measured = (row.state && row.state.ok) ? incomeH(row.num, row.state.money, row.state.ts || now) : null })
       $('#wrap').innerHTML = totals(r.results) + r.results.map(card).join('')
       const d = new Date()
       $('#stamp').textContent = 'atualizado ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0')

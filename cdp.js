@@ -151,8 +151,15 @@ function _stateFn () {
     const an = { loot: byLabel(/^Loot\b/i, true), kills: byLabel(/^Derrotados\b/i), caught: byLabel(/^Capturados\b/i), saldo: byLabel(/^Saldo\b/i, true), cashH }
     const hasAn = an.loot != null || an.kills != null || an.caught != null
 
+    // dinheiro/gold (pro income/h por DELTA, sem precisar do Hunt Analyzer):
+    // maior "$N" visivel. Com o painel fechado = saldo do jogador; com ele
+    // aberto = total de loot da sessao — os dois crescem, entao o delta vira loot/h.
+    let money = null
+    const monies = (body.match(/\$\s*[\d.]+/g) || []).map(s => parseInt(s.replace(/[^\d]/g, ''), 10)).filter(n => !isNaN(n))
+    if (monies.length) money = Math.max.apply(null, monies)
+
     const ballsTotal = Object.values(balls).reduce((a, b) => a + (b || 0), 0)
-    return { ok: true, ts: Date.now(), name, level, zone, active, hp, hpMax, hunt: { seen: huntSeen, searching, wild, timer }, balls, ballsTotal, potions, revives, an: hasAn ? an : null }
+    return { ok: true, ts: Date.now(), name, level, zone, active, hp, hpMax, hunt: { seen: huntSeen, searching, wild, timer }, balls, ballsTotal, potions, revives, money, an: hasAn ? an : null }
   } catch (e) { return { ok: false, err: String((e && e.message) || e) } }
 }
 const STATE_EXPR = '(' + _stateFn.toString() + ')()'
