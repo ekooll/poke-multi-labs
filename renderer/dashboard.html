@@ -81,6 +81,7 @@
   <div class="ft">
     <button id="rf">↻ Atualizar</button>
     <label><input type="checkbox" id="auto" checked /> auto (4s)</label>
+    <label>avisar &lt; <input type="number" id="lowball" value="500" style="width:60px;background:#0b0706;border:1px solid var(--line);border-radius:6px;color:var(--cream);padding:3px 5px;font-family:inherit;font-size:11px"> bolas</label>
     <span class="stamp" id="stamp"></span>
   </div>
 <script>
@@ -93,9 +94,13 @@
   const BALL_LABELS = { poke: 'Poké', ultra: 'Ultra', idle: 'Idle', great: 'Great', master: 'Master' }
   let busy = false
 
+  let LOW = parseInt(localStorage.getItem('pml_lowball') || '500') || 500
   function alertOf (st) {
     if (!st || st.ok === false) return { cls: 'down', badge: 'b-down', txt: '🔴 Desconectado' }
-    if (st.balls && Object.keys(st.balls).length && st.ballsTotal === 0) return { cls: 'warn', badge: 'b-warn', txt: '⚠️ Sem bolas' }
+    if (st.balls && Object.keys(st.balls).length) {
+      if (st.ballsTotal === 0) return { cls: 'down', badge: 'b-down', txt: '⚠️ Sem bolas' }
+      if (st.ballsTotal < LOW) return { cls: 'warn', badge: 'b-warn', txt: '🟡 Bolas acabando' }
+    }
     if (!st.hunt || !st.hunt.seen) return { cls: 'warn', badge: 'b-warn', txt: '⚠️ Fora da hunt' }
     return { cls: '', badge: 'b-ok', txt: '🟢 Na hunt' }
   }
@@ -123,6 +128,8 @@
       const pills = bkeys.map(k => '<span class="pill' + (st.balls[k] === 0 ? ' zero' : '') + '"><i>' + (BALL_LABELS[k] || k) + '</i>' + fmt(st.balls[k]) + '</span>')
         .concat(st.potions != null ? ['<span class="pill"><i>Potions</i>' + fmt(st.potions) + '</span>'] : [])
         .concat(st.revives != null ? ['<span class="pill"><i>Revives</i>' + fmt(st.revives) + '</span>'] : [])
+        .concat(st.shinies != null ? ['<span class="pill" style="border-color:rgba(229,179,79,.55);color:var(--gold)"><i>✨ Shiny</i>' + fmt(st.shinies) + '</span>'] : [])
+        .concat(st.brokenShiny != null ? ['<span class="pill" style="border-color:rgba(226,75,53,.5);color:#ff9d8d"><i>💔 Ball quebrada</i>' + fmt(st.brokenShiny) + '</span>'] : [])
       if (pills.length) inner += '<div class="pills">' + pills.join('') + '</div>'
       // Hunt Analyzer embutido
       if (st.an) {
@@ -186,6 +193,7 @@
   }
   $('#rf').onclick = refresh
   $('#x').onclick = () => window.close()
+  const lb = $('#lowball'); lb.value = LOW; lb.addEventListener('input', () => { LOW = parseInt(lb.value) || 0; localStorage.setItem('pml_lowball', LOW); refresh() })
   setInterval(() => { if ($('#auto').checked) refresh() }, 4000)
   refresh()
 </script>
