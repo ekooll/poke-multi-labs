@@ -161,7 +161,7 @@ function _stateFn () {
     // leitura ao vivo via localStorage.__vperts (populado por userscript/Gabriel).
     // NAO e interceptacao — so leitura de um valor. Traz kills/xp/catches/shiny/ball-quebrada.
     let live = null
-    try { const raw = localStorage.getItem('__vperts'); if (raw) { const w = JSON.parse(raw); live = { kills: w.kills, xp: w.xp, caught: w.caught, brokenBalls: w.brokenBalls, shinies: w.shinies, brokenShiny: w.brokenShiny, msgs: w.msgs, startTs: w.startTs } } } catch (e) {}
+    try { const raw = localStorage.getItem('__vperts'); if (raw) { const w = JSON.parse(raw); live = { kills: w.kills, xp: w.xp, caught: w.caught, brokenBalls: w.brokenBalls, shinies: w.shinies, brokenShiny: w.brokenShiny, shiniesCaught: w.shiniesCaught, lastCatch: w.lastCatch, bestCatch: w.bestCatch, msgs: w.msgs, startTs: w.startTs } } } catch (e) {}
     const shinies = live && live.shinies != null ? live.shinies : null
     const brokenShiny = live && live.brokenShiny != null ? live.brokenShiny : null
 

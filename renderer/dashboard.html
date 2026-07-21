@@ -153,6 +153,7 @@
         '<span class="stat loot">🎯 <b class="l-caught"></b> capt.</span>' +
         '<span class="stat">❌ <b class="l-broken"></b> perdidas</span>' +
       '</div>' +
+      '<div class="sub c-last" hidden></div>' +
       '<div class="analyzer c-an" hidden></div>'
   }
   function buildLayout (results) {
@@ -217,6 +218,12 @@
       show(el, '.c-live', true)
       setT(el, '.l-kills', fmt(st.live.kills)); setT(el, '.l-caught', fmt(st.live.caught)); setT(el, '.l-broken', fmt(st.live.brokenBalls))
     } else show(el, '.c-live', false)
+    if (st.live && st.live.lastCatch) {
+      const c = st.live.lastCatch
+      const q = c.quality != null ? Number(c.quality).toFixed(3) : '?'
+      setT(el, '.c-last', '🎁 última: ' + (c.shiny ? '✨ ' : '') + (c.name || '?') + '  ·  Q ' + q + '  ·  IV ' + (c.ivTotal != null ? c.ivTotal : '?'))
+      show(el, '.c-last', true)
+    } else show(el, '.c-last', false)
     let anHtml = ''
     if (st.an) {
       const A = st.an, p = []
