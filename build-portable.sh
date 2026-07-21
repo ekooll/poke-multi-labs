@@ -4,6 +4,11 @@
 set -e
 cd "$(dirname "$0")"
 
+# FONTE UNICA DE VERSAO = package.json do projeto. Propaga pro zip E pro app-version.json,
+# pra nunca descasar do que o botao Atualizar baixa (a tag da release usa o mesmo numero).
+VERSION=$(node -p "require('./package.json').version")
+echo ">> versao (fonte unica = package.json): $VERSION"
+
 STAGE="dist/PokeMultiLabs-Test"
 echo ">> limpando $STAGE"
 rm -rf "$STAGE"
@@ -28,9 +33,14 @@ echo ">> copiando o modulo 'ws' (pure-JS, pro leitor de loot via CDP)"
 mkdir -p "$STAGE/resources/app/node_modules"
 cp -r node_modules/ws "$STAGE/resources/app/node_modules/ws"
 
-cat > "$STAGE/resources/app/package.json" <<'JSON'
-{ "name": "poke-multi-labs", "version": "0.4.4", "main": "host-main.js" }
+# package.json que vai DENTRO do zip carrega a versao real -> apply-update le ela de volta
+cat > "$STAGE/resources/app/package.json" <<JSON
+{ "name": "poke-multi-labs", "version": "$VERSION", "main": "host-main.js" }
 JSON
+
+# mantem o app-version.json (fallback do updater) em sincronia com a versao, sem perder notes/files
+echo ">> sincronizando app-version.json com a versao $VERSION"
+node -e "const fs=require('fs');const p='app-version.json';const j=fs.existsSync(p)?JSON.parse(fs.readFileSync(p,'utf8')):{};j.version='$VERSION';fs.writeFileSync(p,JSON.stringify(j,null,2))"
 
 echo ">> criando o .bat de atalho (self-locating; vai junto no zip, ao lado do exe)"
 cat > "$STAGE/Criar atalho na Area de Trabalho.bat" <<'BAT'
@@ -51,5 +61,5 @@ powershell -NoProfile -Command "Compress-Archive -Path 'PokeMultiLabs-Test\*' -D
 echo ">> gerando app-update.zip (pro botao Atualizar — so a pasta do app, com node_modules)"
 powershell -NoProfile -Command "Compress-Archive -Path 'PokeMultiLabs-Test\resources\app\*' -DestinationPath 'app-update.zip' -Force"
 
-echo ">> PRONTO"
+echo ">> PRONTO (versao $VERSION)"
 ls -lah PokeMultiLabs-Test.zip app-update.zip

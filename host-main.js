@@ -21,6 +21,8 @@ const DEBUG_PORT_BASE = 9333
 const REPO_RAW = 'https://raw.githubusercontent.com/ekooll/poke-multi-labs/main'
 // zip so com a pasta do app (sem o Electron) — traz ate modulos novos (ex: ws) no update
 const UPDATE_ZIP_URL = 'https://github.com/ekooll/poke-multi-labs/releases/latest/download/app-update.zip'
+// fonte da VERSAO publicada = a propria release (mesma fonte do zip -> nunca descasa do que sera baixado)
+const RELEASES_API = 'https://api.github.com/repos/ekooll/poke-multi-labs/releases/latest'
 const APP_FILES = ['host-main.js', 'host-preload.js', 'config.js', 'cdp.js', 'win32.ps1', 'popupwatch.ps1', 'focuswatch.ps1', 'renderer/host-toolbar.html', 'renderer/login.html', 'renderer/loot.html', 'renderer/curtain.html']
 
 const SIDEBAR_W = 206           // DIP (aberta) — bate com .side no CSS
@@ -35,8 +37,7 @@ let slots = []               // [{ profile, hwnd(str|null) }] em ordem conta-1..
 let layoutMode = 'grid'      // 'grid' | 'columns' | 'rows'
 let solo = -1
 let relayoutTimer = null
-let seenPopups = []
-let popupTimer = null
+let popupProc = null
 let busy = false
 // ---- auth / licenca (Fase 3) ----
 let licensedTelas = 1   // quantas telas a licenca libera (1 gratis / 4 pago)
@@ -421,18 +422,17 @@ function pushState () {
   })
 }
 
-// ---- vigia de popups (login Google): traz pra frente + centraliza ----
-async function pollPopups () {
-  if (!win || slots.length === 0) return
-  const ps = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath('popupwatch.ps1')])
-  let out = ''
-  ps.stdout.on('data', d => { out += d })
-  ps.on('close', () => { try { const r = JSON.parse(out.trim()); if (r && r.popups) seenPopups = r.popups } catch {} })
-  ps.on('error', () => {})
-  ps.stdin.write(JSON.stringify({ known: seenPopups })); ps.stdin.end()
+// ---- vigia de popups (login Google) PERSISTENTE: traz pra frente + centraliza ----
+// (antes spawnava a cada 1.8s recompilando o Add-Type = pico de CPU no fundo)
+function startPopupWatch () {
+  if (popupProc) return
+  try {
+    popupProc = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath('popupwatch.ps1')], { stdio: 'ignore' })
+    popupProc.on('exit', () => { popupProc = null })
+    popupProc.on('error', e => { dlog('!! popupwatch ' + e.message); popupProc = null })
+  } catch (e) { dlog('!! startPopupWatch ' + e.message) }
 }
-function startPopupWatch () { if (!popupTimer) popupTimer = setInterval(pollPopups, 1800) }
-function stopPopupWatch () { clearInterval(popupTimer); popupTimer = null }
+function stopPopupWatch () { try { popupProc && popupProc.kill() } catch {} popupProc = null }
 
 // ---- vigia de FOCO AO CLICAR (foco de teclado no painel clicado) ----
 let focusWatcher = null
@@ -552,13 +552,34 @@ function cmpVer (a, b) {
   for (let i = 0; i < 3; i++) { const d = (pa[i] || 0) - (pb[i] || 0); if (d) return d > 0 ? 1 : -1 }
   return 0
 }
+// le a VERSAO da release publicada (tag "vX.Y.Z" -> "X.Y.Z") + confirma que o zip existe la
+async function latestReleaseInfo () {
+  const r = await fetch(RELEASES_API + '?t=' + Date.now(), {
+    headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'poke-multi-labs' }
+  })
+  if (!r.ok) throw new Error('release HTTP ' + r.status)
+  const j = await r.json()
+  const version = String(j.tag_name || '').replace(/^v/i, '')
+  const hasZip = Array.isArray(j.assets) && j.assets.some(a => a.name === 'app-update.zip')
+  return { version, notes: String(j.body || ''), hasZip }
+}
 ipcMain.handle('check-update', async () => {
+  const cur = localVersion()
+  // fonte PRIMARIA: a release publicada. manifesto e zip vem da MESMA release -> so oferece
+  // update quando existe release nova de fato (mata o "atualizou mas continuou na versao velha").
+  try {
+    const rel = await latestReleaseInfo()
+    if (rel.version) {
+      return { ok: true, current: cur, latest: rel.version, notes: rel.notes,
+        hasUpdate: cmpVer(rel.version, cur) > 0 && rel.hasZip, packaged: app.isPackaged, source: 'release' }
+    }
+  } catch (e) { dlog('check-update via release falhou (' + e.message + '), tenta manifesto do main') }
+  // fallback (API do GitHub fora do ar): manifesto no main, so informativo
   try {
     const r = await fetch(REPO_RAW + '/app-version.json?t=' + Date.now())
     if (!r.ok) throw new Error('HTTP ' + r.status)
     const man = await r.json()
-    const cur = localVersion()
-    return { ok: true, current: cur, latest: man.version, hasUpdate: cmpVer(man.version, cur) > 0, packaged: app.isPackaged }
+    return { ok: true, current: cur, latest: man.version, hasUpdate: cmpVer(man.version, cur) > 0, packaged: app.isPackaged, source: 'main' }
   } catch (e) { dlog('!! check-update ' + e.message); return { ok: false, error: e.message } }
 })
 // Metodo 1 (preferido): baixa o app-update.zip da release e extrai por cima
@@ -601,15 +622,30 @@ async function updateViaFiles (man) {
 ipcMain.handle('apply-update', async () => {
   if (!app.isPackaged) return { ok: false, error: 'modo dev nao atualiza (protege o codigo-fonte)' }
   try {
-    const man = await (await fetch(REPO_RAW + '/app-version.json?t=' + Date.now())).json()
-    try { await updateViaZip() }
-    catch (e) { dlog('update via zip falhou (' + e.message + '), fallback arquivos avulsos'); await updateViaFiles(man) }
-    // garante a versao local (o zip ja traz o package.json novo; fallback nao)
-    try { const pj = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')); pj.version = man.version || pj.version; fs.writeFileSync(path.join(__dirname, 'package.json'), JSON.stringify(pj)) } catch {}
-    dlog('apply-update OK -> ' + man.version + ' | reiniciando')
+    // Metodo 1: zip da release. Ele TRAZ o package.json com a versao real -> a versao local
+    // vira exatamente a que foi baixada (nunca mais "diz 0.4.4 mas o codigo e 0.4.2").
+    await updateViaZip()
+    const applied = localVersion()   // lido do package.json que veio DENTRO do zip
+    dlog('apply-update (zip) OK -> ' + applied + ' | reiniciando')
     setTimeout(() => { app.relaunch(); app.exit(0) }, 300)
-    return { ok: true, version: man.version }
-  } catch (e) { dlog('!! apply-update ' + e.message); return { ok: false, error: e.message } }
+    return { ok: true, version: applied }
+  } catch (e) {
+    dlog('update via zip falhou (' + e.message + '), fallback arquivos avulsos do main')
+    // Metodo 2 (fallback, so quando o zip nao existe): arquivos avulsos do main + versao do manifesto
+    try {
+      const man = await (await fetch(REPO_RAW + '/app-version.json?t=' + Date.now())).json()
+      await updateViaFiles(man)
+      try {
+        const pj = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'))
+        pj.version = man.version || pj.version
+        fs.writeFileSync(path.join(__dirname, 'package.json'), JSON.stringify(pj, null, 2))
+      } catch {}
+      const applied = localVersion()
+      dlog('apply-update (fallback) OK -> ' + applied + ' | reiniciando')
+      setTimeout(() => { app.relaunch(); app.exit(0) }, 300)
+      return { ok: true, version: applied }
+    } catch (e2) { dlog('!! apply-update ' + e2.message); return { ok: false, error: e2.message } }
+  }
 })
 
 // --- sorteio: perfil do usuario (nome/discord/nick) + area de admin ---

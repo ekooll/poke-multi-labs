@@ -1,6 +1,6 @@
 {
-  "version": "0.4.4",
-  "notes": "Trocas de tela ~150x mais rapidas (PowerShell persistente), refoco robusto ao voltar do alt-tab (via focuswatch) e fades mais secos.",
+  "version": "0.4.5",
+  "notes": "Atualizador confiavel: a versao publicada vem da propria release (acabou o 'atualizou mas continuou na versao velha') + vigia do popup de login agora persistente (menos CPU no fundo).",
   "files": [
     "host-main.js",
     "host-preload.js",

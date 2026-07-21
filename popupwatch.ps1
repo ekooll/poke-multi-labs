@@ -1,12 +1,10 @@
-# popupwatch.ps1 — acha popups do Chrome dos NOSSOS perfis (ex: login do Google)
-# que estao soltos por cima, e traz cada um pra frente + centraliza (uma vez).
-# Entrada (stdin): { known: ["hwnd int64", ...] }  -> ja tratados, nao mexer
-# Saida (stdout): { popups: ["hwnd", ...] }  -> todos os popups atuais
+# popupwatch.ps1 — PERSISTENTE (spawnado 1x). Acha popups do Chrome dos NOSSOS
+# perfis (ex: login do Google) que ficam soltos por cima e traz cada um pra frente
+# + centraliza (UMA vez por popup). Antes era spawnado a cada 1.8s recompilando o
+# Add-Type toda vez (~750ms de CPU por tick = desperdicio no fundo). Agora compila
+# 1x e fica no loop. Nao usa stdin/stdout (age sozinho; guarda os ja-tratados aqui).
 
 $ErrorActionPreference = 'SilentlyContinue'
-$cfg = ([Console]::In.ReadToEnd()) | ConvertFrom-Json
-$known = @{}
-if($cfg.known){ foreach($k in $cfg.known){ $known[[string]$k] = $true } }
 
 Add-Type @"
 using System;
@@ -46,28 +44,31 @@ public class WP {
 }
 "@
 
-$ourPids = @(Get-CimInstance Win32_Process -Filter "Name='chrome.exe' or Name='msedge.exe'" |
-  Where-Object { $_.CommandLine -like '*poke-multi-labs*' } | ForEach-Object { [uint32]$_.ProcessId })
-if($ourPids.Count -eq 0){ '{"popups":[]}'; return }
-
 Add-Type -AssemblyName System.Windows.Forms
-$wa = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
 $HWND_TOPMOST=[IntPtr](-1); $HWND_NOTOPMOST=[IntPtr](-2)
 $SWP_NOSIZE=0x0001; $SWP_NOMOVE=0x0002; $SWP_SHOWWINDOW=0x0040
+$known = @{}
 
-$cur = @()
-foreach($h in [WP]::Find([uint32[]]$ourPids)){
-  $id = $h.ToInt64().ToString()
-  $cur += $id
-  if(-not $known.ContainsKey($id)){
-    $r = New-Object 'WP+RECT'; [void][WP]::GetWindowRect($h,[ref]$r)
-    $w = $r.Right-$r.Left; $ht = $r.Bottom-$r.Top
-    $x = $wa.X + [int](($wa.Width - $w)/2)
-    $y = $wa.Y + [int](($wa.Height - $ht)/2)
-    [void][WP]::SetWindowPos($h,$HWND_TOPMOST,$x,$y,0,0,($SWP_NOSIZE -bor $SWP_SHOWWINDOW))
-    [void][WP]::SetWindowPos($h,$HWND_NOTOPMOST,0,0,0,0,($SWP_NOSIZE -bor $SWP_NOMOVE))
-    [void][WP]::BringWindowToTop($h)
-    [void][WP]::SetForegroundWindow($h)
+while($true){
+  Start-Sleep -Milliseconds 2000
+
+  $ourPids = @(Get-CimInstance Win32_Process -Filter "Name='chrome.exe' or Name='msedge.exe'" |
+    Where-Object { $_.CommandLine -like '*poke-multi-labs*' } | ForEach-Object { [uint32]$_.ProcessId })
+  if($ourPids.Count -eq 0){ continue }
+
+  $wa = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+  foreach($h in [WP]::Find([uint32[]]$ourPids)){
+    $id = $h.ToInt64().ToString()
+    if(-not $known.ContainsKey($id)){
+      $known[$id] = $true
+      $r = New-Object 'WP+RECT'; [void][WP]::GetWindowRect($h,[ref]$r)
+      $w = $r.Right-$r.Left; $ht = $r.Bottom-$r.Top
+      $x = $wa.X + [int](($wa.Width - $w)/2)
+      $y = $wa.Y + [int](($wa.Height - $ht)/2)
+      [void][WP]::SetWindowPos($h,$HWND_TOPMOST,$x,$y,0,0,($SWP_NOSIZE -bor $SWP_SHOWWINDOW))
+      [void][WP]::SetWindowPos($h,$HWND_NOTOPMOST,0,0,0,0,($SWP_NOSIZE -bor $SWP_NOMOVE))
+      [void][WP]::BringWindowToTop($h)
+      [void][WP]::SetForegroundWindow($h)
+    }
   }
 }
-@{ popups = $cur } | ConvertTo-Json -Compress
