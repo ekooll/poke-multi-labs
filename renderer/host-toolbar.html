@@ -140,16 +140,6 @@
 
     <div class="body">
       <div class="grp">
-        <span class="lbl">Telas</span>
-        <div class="rowbtns" id="seg-n">
-          <button class="b" data-n="1">1</button>
-          <button class="b" data-n="2">2</button>
-          <button class="b" data-n="3">3</button>
-          <button class="b" data-n="4">4</button>
-        </div>
-      </div>
-
-      <div class="grp">
         <span class="lbl">Layout</span>
         <div class="rowbtns col" id="seg-mode">
           <button class="b" data-m="grid">▦ Grade</button>
@@ -164,8 +154,8 @@
       </div>
 
       <div class="grp">
-        <span class="lbl">Lucro</span>
-        <button class="b" id="loot-btn" style="flex:none">💰 Loot total (janela)</button>
+        <span class="lbl">Painel</span>
+        <button class="b" id="dash-btn" style="flex:none">📊 Dashboard das contas</button>
       </div>
 
       <div class="grp">
@@ -264,9 +254,9 @@
   function renderRail (s) {
     const rail = $('#rail'); if (!rail) return; rail.innerHTML = ''
     // loot (balao com cifrao) — abre a janela de soma
-    const loot = document.createElement('button')
-    loot.className = 'rbtn rloot'; loot.textContent = '$'; loot.title = 'Loot total das contas'
-    loot.onclick = () => window.ml.openLoot(); rail.appendChild(loot)
+    const dash = document.createElement('button')
+    dash.className = 'rbtn'; dash.textContent = '📊'; dash.title = 'Dashboard das contas'
+    dash.onclick = () => window.ml.openDashboard(); rail.appendChild(dash)
     const all = document.createElement('button')
     all.className = 'rbtn' + (s.solo === -1 ? ' on' : ''); all.textContent = '▦'; all.title = 'Todas'
     all.onclick = () => window.ml.setSolo(-1); rail.appendChild(all)
@@ -327,8 +317,8 @@
   document.querySelectorAll('#seg-mode button').forEach(b =>
     b.onclick = () => window.ml.setLayout(b.dataset.m))
 
-  // ---- Hunt Analyzer: abre a janela flutuante (aba solta) ----
-  document.getElementById('loot-btn').onclick = () => window.ml.openLoot()
+  // ---- Dashboard das contas (loot + estado, tudo numa janela) ----
+  document.getElementById('dash-btn').onclick = () => window.ml.openDashboard()
 
   // ---- Atualizar (baixa so os arquivos do app, sem rebaixar tudo) ----
   const btnUp = document.getElementById('btn-update')

@@ -74,4 +74,95 @@ async function readLoot (port) {
   } catch { return null }
 }
 
-module.exports = { readLoot, waitReady, evaluate, getPageWs, LOOT_EXPR, available: () => !!WebSocket }
+// ------------------------------------------------------------------
+// Dashboard: le o HUD do jogo (nome/nivel/zona, HP, mon ativo, status
+// da hunt e contadores de bola). Best-effort, ancorado em ROTULOS de
+// texto (como o LOOT_EXPR) -> sobrevive a mudanca de classes. Campos
+// que nao achar voltam null; a UI degrada com "—". Tuna ao vivo.
+// A funcao roda DENTRO da pagina do jogo (so usa document/window).
+// ------------------------------------------------------------------
+function _stateFn () {
+  try {
+    const root = document.querySelector('#game-root') || document.body
+    const leaves = [...root.querySelectorAll('*')].filter(e => e.children.length === 0)
+    const T = e => ((e.innerText || e.textContent || '').trim())
+    const toInt = s => { const m = String(s).match(/([\d][\d.]*)/); return m ? parseInt(m[1].replace(/\./g, ''), 10) : null }
+    const body = (document.body.innerText || '')
+
+    // nivel + zona: "Nível 203 · Hard Golem"
+    let level = null, zone = null, name = null
+    const lvl = leaves.find(e => /^N[ií]vel\s+\d+/i.test(T(e)))
+    if (lvl) {
+      const m = T(lvl).match(/N[ií]vel\s+(\d+)\s*[·|\-–]?\s*(.*)$/i)
+      if (m) { level = +m[1]; zone = (m[2] || '').trim() || null }
+      for (const a of [lvl.previousElementSibling, lvl.parentElement && lvl.parentElement.previousElementSibling]) {
+        if (a) { const t = T(a); if (/^[A-Za-z0-9_]{3,20}$/.test(t)) { name = t; break } }
+      }
+    }
+    if (!name) {
+      const nl = leaves.find(e => { const t = T(e); return /^[A-Za-z0-9_]{3,20}$/.test(t) && !/^\d+$/.test(t) && !/^(exp|lv|hp|ball|bola|menu|chat)$/i.test(t) })
+      if (nl) name = T(nl)
+    }
+
+    // HP: "3752/4620"
+    let hp = null, hpMax = null
+    const hpEl = leaves.find(e => /^\d{1,6}\s*\/\s*\d{1,6}$/.test(T(e)))
+    if (hpEl) { const m = T(hpEl).match(/(\d+)\s*\/\s*(\d+)/); if (m) { hp = +m[1]; hpMax = +m[2] } }
+
+    // mon ativo: "[202] Vileplume" ou "Vileplume (ativo)"
+    let active = null
+    const monEl = leaves.find(e => /\(ativo\)/i.test(T(e))) || leaves.find(e => /^\[\d+\]\s*\S/.test(T(e)))
+    if (monEl) {
+      const t = T(monEl); const m = t.match(/^\[\d+\]\s*(.+)$/) || t.match(/^(.+?)\s*\(ativo\)/i)
+      if (m) active = (m[1] || '').trim()
+    }
+
+    // hunt: "Procurando Pokémon selvagem…", "N selvagem", timer mm:ss
+    let searching = false, wild = null, huntSeen = false, timer = null
+    if (leaves.find(e => /procurando.*selvage/i.test(T(e)))) { searching = true; huntSeen = true }
+    const wEl = leaves.find(e => /^\d+\s+selvage/i.test(T(e)))
+    if (wEl) { wild = toInt(T(wEl)); huntSeen = true }
+    const tEl = leaves.find(e => /^\d{1,2}:\d{2}$/.test(T(e))); if (tEl) timer = T(tEl)
+
+    // bolas: acha o rotulo e o numero mais proximo (subindo ate 4 pais)
+    const ballDefs = [['poke', /pok[eé]\s*ball/i], ['ultra', /ultra\s*ball/i], ['idle', /idle\s*ball/i], ['great', /great\s*ball/i], ['master', /master\s*ball/i]]
+    const balls = {}
+    const cands = [...root.querySelectorAll('[aria-label],[title],button,span,div')]
+    for (const [key, re] of ballDefs) {
+      const el = cands.find(e => {
+        const lab = ((e.getAttribute && (e.getAttribute('aria-label') || e.getAttribute('title'))) || '') + ' ' + (e.children.length < 4 ? T(e) : '')
+        return re.test(lab)
+      })
+      if (!el) continue
+      let p = el, n = null
+      for (let k = 0; k < 4 && p; k++) { const m = (p.innerText || '').match(/(\d[\d.]{0,7})/); if (m) { n = parseInt(m[1].replace(/\./g, ''), 10); break } p = p.parentElement }
+      if (n != null) balls[key] = n
+    }
+
+    // best-effort (so quando o painel Inventario/Captura esta aberto)
+    const grab = re => { const m = body.match(re); return m ? parseInt(m[1].replace(/\./g, ''), 10) : null }
+    const potions = grab(/(\d[\d.]*)\s*(?:po[çc][õo]es|potions?)/i) || grab(/potions?\s*[:\-]?\s*(\d[\d.]*)/i)
+    const revives = grab(/(\d[\d.]*)\s*(?:revives?|reviver)/i) || grab(/revives?\s*[:\-]?\s*(\d[\d.]*)/i)
+
+    // Hunt Analyzer (painel aberto): o numero vem ANTES do rotulo (ancora no rotulo, sobe ate 3 pais)
+    const numFrom = (t, money) => { const m = String(t).match(money ? /(-?)\s*\$\s*([\d.]+)/ : /([\d.]+)/); if (!m) return null; const n = parseInt((money ? m[2] : m[1]).replace(/\./g, ''), 10); return (money && m[1] === '-') ? -n : n }
+    const byLabel = (re, money) => { const el = leaves.find(e => re.test(T(e))); if (!el) return null; let p = el.parentElement; for (let k = 0; k < 3 && p; k++) { const n = numFrom(p.innerText || '', money); if (n != null) return n; p = p.parentElement } return null }
+    let cashH = null; const chm = body.match(/\$\s*([\d.]+)\s*\/\s*h/i); if (chm) cashH = parseInt(chm[1].replace(/\./g, ''), 10)
+    const an = { loot: byLabel(/^Loot\b/i, true), kills: byLabel(/^Derrotados\b/i), caught: byLabel(/^Capturados\b/i), saldo: byLabel(/^Saldo\b/i, true), cashH }
+    const hasAn = an.loot != null || an.kills != null || an.caught != null
+
+    const ballsTotal = Object.values(balls).reduce((a, b) => a + (b || 0), 0)
+    return { ok: true, ts: Date.now(), name, level, zone, active, hp, hpMax, hunt: { seen: huntSeen, searching, wild, timer }, balls, ballsTotal, potions, revives, an: hasAn ? an : null }
+  } catch (e) { return { ok: false, err: String((e && e.message) || e) } }
+}
+const STATE_EXPR = '(' + _stateFn.toString() + ')()'
+
+async function readState (port) {
+  try {
+    const wsUrl = await getPageWs(port)
+    if (!wsUrl) return null
+    return await evaluate(wsUrl, STATE_EXPR)
+  } catch { return null }
+}
+
+module.exports = { readLoot, readState, waitReady, evaluate, getPageWs, LOOT_EXPR, STATE_EXPR, available: () => !!WebSocket }

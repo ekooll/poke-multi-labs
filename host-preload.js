@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('ml', {
   logout: () => ipcRenderer.invoke('logout'),
   readLoot: () => ipcRenderer.invoke('read-loot'),
   openLoot: () => ipcRenderer.invoke('open-loot'),
+  readDashboard: () => ipcRenderer.invoke('read-dashboard'),
+  openDashboard: () => ipcRenderer.invoke('open-dashboard'),
   checkUpdate: () => ipcRenderer.invoke('check-update'),
   applyUpdate: () => ipcRenderer.invoke('apply-update'),
   getProfile: () => ipcRenderer.invoke('get-profile'),

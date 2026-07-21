@@ -23,7 +23,7 @@ const REPO_RAW = 'https://raw.githubusercontent.com/ekooll/poke-multi-labs/main'
 const UPDATE_ZIP_URL = 'https://github.com/ekooll/poke-multi-labs/releases/latest/download/app-update.zip'
 // fonte da VERSAO publicada = a propria release (mesma fonte do zip -> nunca descasa do que sera baixado)
 const RELEASES_API = 'https://api.github.com/repos/ekooll/poke-multi-labs/releases/latest'
-const APP_FILES = ['host-main.js', 'host-preload.js', 'config.js', 'cdp.js', 'win32.ps1', 'popupwatch.ps1', 'focuswatch.ps1', 'renderer/host-toolbar.html', 'renderer/login.html', 'renderer/loot.html', 'renderer/curtain.html']
+const APP_FILES = ['host-main.js', 'host-preload.js', 'config.js', 'cdp.js', 'win32.ps1', 'popupwatch.ps1', 'focuswatch.ps1', 'renderer/host-toolbar.html', 'renderer/login.html', 'renderer/loot.html', 'renderer/dashboard.html', 'renderer/curtain.html']
 
 const SIDEBAR_W = 206           // DIP (aberta) — bate com .side no CSS
 const SIDEBAR_W_COLLAPSED = 56  // DIP (recolhida) — bate com body.collapsed .side
@@ -32,6 +32,7 @@ let sidebarCollapsed = false
 
 let win = null
 let lootWin = null           // janela flutuante do Hunt Analyzer (soma de loot)
+let dashWin = null           // janela flutuante do Dashboard (estado das contas)
 let overlayWin = null        // "cortina" de transicao (cobre a area do jogo no fade)
 let slots = []               // [{ profile, hwnd(str|null) }] em ordem conta-1..N
 let layoutMode = 'grid'      // 'grid' | 'columns' | 'rows'
@@ -498,9 +499,11 @@ function createWindow () {
   win.setMenuBarVisibility(false)
   win.maximize()   // abre maximizada (pediram tela cheia do launcher)
   win.on('resize', () => scheduleRelayout())
-  win.on('focus', () => scheduleRefocus())   // voltou do alt-tab -> reativa a janela do jogo
+  // voltou do alt-tab: foca o HOST (mimica o clique na sidebar que destrava), NAO o
+  // child. SetFocus no child cross-process deixa o input em limbo (mouse+teclado mortos).
+  win.on('focus', () => { try { win.webContents.focus() } catch {} dlog('win focus -> host webContents') })
 
-  win.on('closed', () => { win = null; try { lootWin && lootWin.close() } catch {} stopPopupWatch(); stopFocusWatch(); stopWin32Server(); killAll() })
+  win.on('closed', () => { win = null; try { lootWin && lootWin.close() } catch {} try { dashWin && dashWin.close() } catch {} stopPopupWatch(); stopFocusWatch(); stopWin32Server(); killAll() })
 
   // boot: restaura sessao salva -> entra direto; senao mostra login
   refreshToken()
@@ -541,6 +544,30 @@ ipcMain.handle('read-loot', async () => {
   const total = results.reduce((a, r) => a + (r.loot || 0), 0)
   dlog('read-loot total=' + total + ' ' + JSON.stringify(results))
   return { results, total, available: cdp.available() }
+})
+
+// --- Dashboard: abre a janela flutuante de estado das contas ---
+ipcMain.handle('open-dashboard', () => {
+  if (dashWin && !dashWin.isDestroyed()) { dashWin.show(); dashWin.focus(); return true }
+  const b = win ? win.getBounds() : { x: 200, y: 120, width: 1200 }
+  dashWin = new BrowserWindow({
+    width: 440, height: 660, x: b.x + b.width - 480, y: b.y + 60,
+    frame: false, resizable: true, alwaysOnTop: true, skipTaskbar: true,
+    backgroundColor: '#0a0605', title: 'Dashboard das contas',
+    webPreferences: { preload: path.join(__dirname, 'host-preload.js'), contextIsolation: true, nodeIntegration: false }
+  })
+  dashWin.setMenuBarVisibility(false)
+  dashWin.loadFile(path.join(__dirname, 'renderer', 'dashboard.html'))
+  dashWin.on('closed', () => { dashWin = null })
+  return true
+})
+
+// --- Dashboard: le o estado (HUD) de cada conta via CDP ---
+ipcMain.handle('read-dashboard', async () => {
+  const results = await Promise.all(slots.map(async s => ({
+    num: s.num, embedded: !!s.hwnd, state: await cdp.readState(s.port)
+  })))
+  return { results, available: cdp.available() }
 })
 
 // --- auto-update (baixa so os arquivos do app do GitHub) ---
@@ -676,7 +703,7 @@ ipcMain.handle('login', async (_e, email, password) => {
 ipcMain.handle('signup', async (_e, email, password) => doSignup(email, password))
 ipcMain.handle('logout', async () => {
   clearSession(); licensedTelas = 1; authEmail = null
-  stopPopupWatch(); stopFocusWatch(); unregisterShortcuts(); try { lootWin && lootWin.close() } catch {} try { overlayWin && overlayWin.close() } catch {} killAll()
+  stopPopupWatch(); stopFocusWatch(); unregisterShortcuts(); try { lootWin && lootWin.close() } catch {} try { dashWin && dashWin.close() } catch {} try { overlayWin && overlayWin.close() } catch {} killAll()
   win.loadFile(path.join(__dirname, 'renderer', 'login.html'))
   return true
 })

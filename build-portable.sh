@@ -25,6 +25,7 @@ cp host-main.js host-preload.js config.js cdp.js win32.ps1 popupwatch.ps1 focusw
 cp renderer/host-toolbar.html "$STAGE/resources/app/renderer/"
 cp renderer/login.html "$STAGE/resources/app/renderer/"
 cp renderer/loot.html "$STAGE/resources/app/renderer/"
+cp renderer/dashboard.html "$STAGE/resources/app/renderer/"
 cp renderer/curtain.html "$STAGE/resources/app/renderer/"
 cp renderer/logo-vp.png "$STAGE/resources/app/renderer/"
 [ -f renderer/logo-vp.ico ] && cp renderer/logo-vp.ico "$STAGE/resources/app/renderer/"

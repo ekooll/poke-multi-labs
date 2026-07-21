@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Dashboard das contas</title>
+<style>
+  :root{
+    --bg:#0a0605; --surface-2:#1e1210; --surface-3:#261712;
+    --line:rgba(216,138,74,.18); --line-strong:rgba(229,179,79,.4);
+    --gold:#e5b34f; --gold-soft:#d98350; --cream:#f7eee7;
+    --muted:#b5a196; --faint:#7d6d64; --good:#4fc47a; --bad:#e24b35; --warn:#e5b34f;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;color:var(--cream);
+    font-family:Inter,system-ui,-apple-system,sans-serif;
+    background:radial-gradient(120% 90% at 0% 0%,#1b0f0b 0%,#0a0605 60%)}
+  .bar{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;
+    border-bottom:1px solid var(--line);-webkit-app-region:drag;cursor:move}
+  .bar .t{font-weight:800;font-size:13px;color:var(--gold-soft);letter-spacing:.02em}
+  .bar button{-webkit-app-region:no-drag;background:transparent;border:0;color:var(--faint);
+    font-size:14px;cursor:pointer;border-radius:6px;width:24px;height:24px}
+  .bar button:hover{color:var(--good);background:rgba(79,196,122,.12)}
+  .wrap{height:calc(100% - 42px - 44px);overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:10px}
+  .wrap::-webkit-scrollbar{width:7px}.wrap::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:4px}
+
+  /* totais */
+  .totals{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+  .tile{background:#0d0807;border:1px solid var(--line);border-radius:10px;padding:8px 9px;text-align:center}
+  .tile .k{font-size:9px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+  .tile .v{font-size:16px;font-weight:800;margin-top:2px;color:var(--cream)}
+  .tile.gold .v{color:var(--gold)} .tile.good .v{color:var(--good)} .tile.warn .v{color:var(--warn)}
+
+  /* grafico loot por conta */
+  .chart{background:#0d0807;border:1px solid var(--line);border-radius:11px;padding:10px 11px}
+  .chart .ct{font-size:9.5px;color:var(--gold-soft);text-transform:uppercase;letter-spacing:.1em;font-weight:800;margin-bottom:8px}
+  .crow{display:grid;grid-template-columns:70px 1fr auto;align-items:center;gap:8px;margin-top:5px}
+  .crow .cn{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ctrack{height:9px;background:#160d0a;border-radius:5px;overflow:hidden}
+  .cfill{height:100%;background:linear-gradient(90deg,var(--gold-soft),var(--gold));border-radius:5px}
+  .crow .cv{font-size:11px;font-weight:700;color:var(--good)}
+
+  /* card por conta */
+  .card{border:1px solid var(--line);border-radius:11px;background:linear-gradient(160deg,rgba(30,18,16,.9),rgba(13,8,7,.9));
+    padding:10px 11px;display:flex;flex-direction:column;gap:7px}
+  .card.down{border-color:rgba(226,75,53,.55)}
+  .card.warn{border-color:rgba(229,179,79,.45)}
+  .chead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .cname{font-weight:800;font-size:13px;color:var(--cream)}
+  .badge{font-size:10.5px;font-weight:800;padding:3px 8px;border-radius:99px;white-space:nowrap}
+  .b-ok{color:#0c1a10;background:var(--good)}
+  .b-warn{color:#1a1405;background:var(--warn)}
+  .b-down{color:#fff;background:var(--bad)}
+  .sub{font-size:11px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 10px}
+  .sub b{color:var(--gold-soft);font-weight:600}
+  .hpbar{height:8px;border-radius:5px;background:#0d0807;border:1px solid var(--line);overflow:hidden}
+  .hpfill{height:100%;background:linear-gradient(90deg,#3ae07c,#1fb959);border-radius:5px 0 0 5px}
+  .pills{display:flex;gap:6px;flex-wrap:wrap}
+  .pill{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--cream);
+    background:#0d0807;border:1px solid var(--line);border-radius:8px;padding:4px 8px}
+  .pill i{color:var(--faint);font-style:normal;font-weight:600}
+  .pill.zero{border-color:rgba(226,75,53,.5);color:#ff9d8d}
+  .analyzer{border-top:1px dashed var(--line);padding-top:7px;display:flex;flex-wrap:wrap;gap:5px 8px}
+  .stat{font-size:10.5px;color:var(--muted)}
+  .stat b{color:var(--cream);font-weight:700}
+  .stat.loot b{color:var(--good)} .stat.saldo b{color:var(--gold)}
+  .anhint{font-size:10px;color:var(--faint);font-style:italic}
+  .na{color:var(--faint);font-style:italic;font-size:12px;text-align:center;padding:18px}
+
+  .ft{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;
+    border-top:1px solid var(--line);height:44px}
+  .ft button{background:var(--surface-2);border:1px solid var(--line);color:var(--muted);
+    border-radius:9px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+  .ft button:hover{border-color:var(--line-strong);color:var(--gold)}
+  .ft label{font-size:11px;color:var(--faint);display:flex;align-items:center;gap:5px;cursor:pointer}
+  .ft .stamp{font-size:10px;color:var(--faint)}
+</style>
+</head>
+<body>
+  <div class="bar"><span class="t">📊 Dashboard das contas</span><button id="x" title="Fechar">✕</button></div>
+  <div class="wrap" id="wrap"><div class="na">carregando…</div></div>
+  <div class="ft">
+    <button id="rf">↻ Atualizar</button>
+    <label><input type="checkbox" id="auto" checked /> auto (4s)</label>
+    <span class="stamp" id="stamp"></span>
+  </div>
+<script>
+  const $ = (s) => document.querySelector(s)
+  const namesMap = () => { try { return JSON.parse(localStorage.getItem('pml_names') || '{}') } catch { return {} } }
+  const nameOf = (n) => namesMap()[n] || ('Conta ' + n)
+  const fmt = (n) => Number(n || 0).toLocaleString('pt-BR')
+  const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(Number(n || 0)).toLocaleString('pt-BR')
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+  const BALL_LABELS = { poke: 'Poké', ultra: 'Ultra', idle: 'Idle', great: 'Great', master: 'Master' }
+  let busy = false
+
+  function alertOf (st) {
+    if (!st || st.ok === false) return { cls: 'down', badge: 'b-down', txt: '🔴 Desconectado' }
+    if (st.balls && Object.keys(st.balls).length && st.ballsTotal === 0) return { cls: 'warn', badge: 'b-warn', txt: '⚠️ Sem bolas' }
+    if (!st.hunt || !st.hunt.seen) return { cls: 'warn', badge: 'b-warn', txt: '⚠️ Fora da hunt' }
+    return { cls: '', badge: 'b-ok', txt: '🟢 Na hunt' }
+  }
+
+  function card (row) {
+    const st = row.state
+    const a = alertOf(st)
+    let inner = ''
+    if (!st || st.ok === false) {
+      inner = '<div class="sub"><span>' + (row.embedded ? 'encaixada, mas o jogo não respondeu' : 'não encaixada') + ' — pode ser jogo/net caído.</span></div>'
+    } else {
+      const lvl = st.level != null ? 'Nível ' + st.level : ''
+      inner += '<div class="sub">' +
+        (lvl ? '<span><b>' + lvl + '</b></span>' : '') +
+        (st.zone ? '<span>📍 ' + esc(st.zone) + '</span>' : '') +
+        (st.active ? '<span>🐾 ' + esc(st.active) + '</span>' : '') + '</div>'
+      if (st.hp != null && st.hpMax) {
+        const pct = Math.max(0, Math.min(100, st.hp / st.hpMax * 100))
+        inner += '<div class="hpbar"><div class="hpfill" style="width:' + pct.toFixed(0) + '%"></div></div>' +
+          '<div class="sub"><span>HP <b>' + fmt(st.hp) + '</b> / ' + fmt(st.hpMax) + '</span>' +
+          (st.hunt && st.hunt.timer ? '<span>⏱ ' + esc(st.hunt.timer) + '</span>' : '') +
+          (st.hunt && st.hunt.wild != null ? '<span>' + st.hunt.wild + ' selvagem</span>' : '') + '</div>'
+      }
+      const bkeys = st.balls ? Object.keys(st.balls) : []
+      const pills = bkeys.map(k => '<span class="pill' + (st.balls[k] === 0 ? ' zero' : '') + '"><i>' + (BALL_LABELS[k] || k) + '</i>' + fmt(st.balls[k]) + '</span>')
+        .concat(st.potions != null ? ['<span class="pill"><i>Potions</i>' + fmt(st.potions) + '</span>'] : [])
+        .concat(st.revives != null ? ['<span class="pill"><i>Revives</i>' + fmt(st.revives) + '</span>'] : [])
+      if (pills.length) inner += '<div class="pills">' + pills.join('') + '</div>'
+      // Hunt Analyzer embutido
+      if (st.an) {
+        const A = st.an, parts = []
+        if (A.loot != null) parts.push('<span class="stat loot">💰 Loot <b>' + money(A.loot) + '</b></span>')
+        if (A.cashH != null) parts.push('<span class="stat">📈 <b>' + money(A.cashH) + '</b>/h</span>')
+        if (A.kills != null) parts.push('<span class="stat">⚔️ <b>' + fmt(A.kills) + '</b></span>')
+        if (A.caught != null) parts.push('<span class="stat">🎯 <b>' + fmt(A.caught) + '</b> capt.</span>')
+        if (A.saldo != null) parts.push('<span class="stat saldo">Saldo <b>' + money(A.saldo) + '</b></span>')
+        inner += '<div class="analyzer">' + parts.join('') + '</div>'
+      } else {
+        inner += '<div class="analyzer"><span class="anhint">Abra o Hunt Analyzer nesta conta pra ver loot/kills/saldo.</span></div>'
+      }
+    }
+    return '<div class="card ' + a.cls + '">' +
+      '<div class="chead"><span class="cname">' + esc(nameOf(row.num)) + '</span>' +
+      '<span class="badge ' + a.badge + '">' + a.txt + '</span></div>' + inner + '</div>'
+  }
+
+  function totals (results) {
+    let inHunt = 0, alerts = 0, loot = 0, cashH = 0, hasLoot = false
+    for (const r of results) {
+      const st = r.state, a = alertOf(st)
+      if (a.badge === 'b-ok') inHunt++
+      if (a.badge !== 'b-ok') alerts++
+      if (st && st.an) { if (st.an.loot != null) { loot += st.an.loot; hasLoot = true } ; if (st.an.cashH != null) cashH += st.an.cashH }
+    }
+    let html = '<div class="totals">' +
+      '<div class="tile"><div class="k">Contas</div><div class="v">' + results.length + '</div></div>' +
+      '<div class="tile good"><div class="k">Na hunt</div><div class="v">' + inHunt + '</div></div>' +
+      '<div class="tile warn"><div class="k">Alertas</div><div class="v">' + alerts + '</div></div>' +
+      (hasLoot ? '<div class="tile gold"><div class="k">Loot total</div><div class="v">' + money(loot) + '</div></div>' +
+                 '<div class="tile good"><div class="k">Cash/h</div><div class="v">' + money(cashH) + '</div></div>' : '') +
+      '</div>'
+    // grafico loot por conta
+    const withLoot = results.filter(r => r.state && r.state.an && r.state.an.loot != null)
+    if (withLoot.length) {
+      const max = Math.max(...withLoot.map(r => r.state.an.loot), 1)
+      html += '<div class="chart"><div class="ct">Loot por conta</div>' +
+        withLoot.map(r => {
+          const w = Math.max(3, r.state.an.loot / max * 100)
+          return '<div class="crow"><span class="cn">' + esc(nameOf(r.num)) + '</span>' +
+            '<div class="ctrack"><div class="cfill" style="width:' + w.toFixed(0) + '%"></div></div>' +
+            '<span class="cv">' + money(r.state.an.loot) + '</span></div>'
+        }).join('') + '</div>'
+    }
+    return html
+  }
+
+  async function refresh () {
+    if (busy) return; busy = true
+    try {
+      const r = await window.ml.readDashboard()
+      if (!r || !r.available) { $('#wrap').innerHTML = '<div class="na">Leitor indisponível nesta versão.</div>'; return }
+      if (!r.results || !r.results.length) { $('#wrap').innerHTML = '<div class="na">Nenhuma conta aberta.</div>'; return }
+      $('#wrap').innerHTML = totals(r.results) + r.results.map(card).join('')
+      const d = new Date()
+      $('#stamp').textContent = 'atualizado ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0')
+    } catch (e) { $('#wrap').innerHTML = '<div class="na">Erro: ' + esc(e.message) + '</div>' }
+    finally { busy = false }
+  }
+  $('#rf').onclick = refresh
+  $('#x').onclick = () => window.close()
+  setInterval(() => { if ($('#auto').checked) refresh() }, 4000)
+  refresh()
+</script>
+</body>
+</html>
