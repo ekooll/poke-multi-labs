@@ -180,7 +180,7 @@
     })
   }
 
-  const setT = (el, sel, val) => { const n = el.querySelector(sel); if (n) n.textContent = val }
+  const setT = (el, sel, val) => { const n = el.querySelector(sel); if (n && n.textContent !== String(val)) n.textContent = val }
   const show = (el, sel, s) => { const n = el.querySelector(sel); if (n) n.hidden = !s }
 
   function updateCard (el, row) {
@@ -208,7 +208,8 @@
     const balls = st.balls || {}
     BALL_ORDER.forEach(k => {
       const p = el.querySelector('.pb-' + k)
-      if (balls[k] != null) { p.hidden = false; p.classList.toggle('zero', balls[k] === 0); p.querySelector('b').textContent = fmt(balls[k]) } else p.hidden = true
+      // leitura do DOM "treme" — se falhar num ciclo, mantem a pill com o ultimo valor (nao pisca)
+      if (balls[k] != null) { p.hidden = false; p.classList.toggle('zero', balls[k] === 0); const bn = p.querySelector('b'); const nv = fmt(balls[k]); if (bn.textContent !== nv) bn.textContent = nv }
     })
     const opt = (sel, val) => { const p = el.querySelector(sel); if (val != null) { p.hidden = false; p.querySelector('b').textContent = fmt(val) } else p.hidden = true }
     opt('.pb-potions', st.potions); opt('.pb-revives', st.revives); opt('.pb-shiny', st.shinies); opt('.pb-broken', st.brokenShiny)
