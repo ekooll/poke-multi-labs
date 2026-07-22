@@ -115,13 +115,16 @@
     photos: 0,        // Rare Pokemon Picture — 1 foto = 1 shiny achado na hunt
     potions: null, revives: null, rareItems: null,   // estoque real (via /game/items.json)
     hunt: null,       // { slug, key, since } de field-init
+    drops: null, lootGold: 0, lootItems: 0,   // loot da sessao valorizado pelo catalogo
+    capturesGold: 0, ballsUsed: 0,            // pro saldo (Loot + Capturas - Supply)
     an: null,         // analyzer OFICIAL do jogo (kills/xpPerHour/goldPerHour/drops[]...)
     ballCounts: null, ballCatalog: null,   // catalogo traz nome+icone -> fim do mapa chutado
     lastCatch: null, bestCatch: null, catches: [], rareDrops: [], loot: {},
     offline: false,
   };
   // estado interno (fora do V pra nao ir parar no localStorage a cada save)
-  const P = { ids: Object.create(null), shinyOnField: false, lastBall: null, huntKey: null, inv: null, items: null, loadingItems: false };
+  const P = { ids: Object.create(null), shinyOnField: false, lastBall: null, huntKey: null,
+    inv: null, items: null, loadingItems: false, lootById: Object.create(null) };
 
   // ---- ESTOQUE de potions/revives ----
   // O proprio jogo publica o catalogo de itens em /game/items.json (id -> nome/categoria/icone;
@@ -133,8 +136,8 @@
     fetch('/game/items.json').then(r => r.json()).then(j => {
       const arr = Array.isArray(j) ? j : (j.items || Object.values(j));
       const map = Object.create(null);
-      arr.forEach(it => { if (it && it.id != null) map[it.id] = { name: it.name, category: it.category, rare: !!it.rare, icon: iconUrl(it.icon) }; });
-      P.items = map; bag(); flush();
+      arr.forEach(it => { if (it && it.id != null) map[it.id] = { name: it.name, category: it.category, rare: !!it.rare, icon: iconUrl(it.icon), price: it.npcPrice || 0 }; });
+      P.items = map; bag(); drops(); flush();
     }).catch(() => { P.loadingItems = false; });   // tenta de novo no proximo inventory
   };
   // mesma regra do cliente do jogo: absoluta fica, "/..." ganha o origin, nome cru vira /assets/items/
@@ -164,22 +167,29 @@
     V.rareItems = raros.sort((a, b) => b.qty - a.qty).slice(0, 12);
   };
   const RARE = /ferom|pheromone|strange|foto|photo|picture/i;
-  // acumula o loot e mantem UMA linha por item raro com a quantidade ("... x4"), em vez de
-  // deduplicar pelo texto e engolir as repeticoes
-  const bumpLoot = (nm, qty) => {
-    V.loot[nm] = (V.loot[nm] || 0) + (qty || 0);
-    if (!RARE.test(nm)) return;
-    const tag = nm + (V.loot[nm] > 1 ? ' ×' + V.loot[nm] : '');
-    const i = V.rareDrops.findIndex(s => s.indexOf(nm) === 0);
-    if (i >= 0) V.rareDrops[i] = tag;
-    else { V.rareDrops.push(tag); if (V.rareDrops.length > 12) V.rareDrops.shift(); }
-  };
   const addRare = (tag) => { if (V.rareDrops.indexOf(tag) === -1) { V.rareDrops.push(tag); if (V.rareDrops.length > 12) V.rareDrops.shift(); } };
+  // DROPS DA SESSAO, como o painel do jogo: sprite + nome + xN + valor. O `analyzer` so
+  // chega a cada ~90s, entao ate la a gente soma o loot dos field-kill e valoriza pelo
+  // npcPrice do catalogo (marcado como estimativa) — o painel nunca fica vazio.
+  const drops = () => {
+    const ids = Object.keys(P.lootById);
+    if (!P.items || !ids.length) return;
+    let gold = 0, itens = 0;
+    const lista = ids.map(id => {
+      const c = P.items[id] || {}; const qty = P.lootById[id];
+      const g = (c.price || 0) * qty; gold += g; itens += qty;
+      return { name: c.name || ('item ' + id), qty, icon: c.icon || null, gold: g, rare: !!c.rare };
+    }).sort((a, b) => b.gold - a.gold);
+    V.drops = lista.slice(0, 14);
+    V.lootGold = gold; V.lootItems = itens;
+  };
   // troca de hunt: zera o que o jogo zera. Historico (capturas, melhor, fotos) fica.
   const resetSess = () => {
     V.kills = 0; V.xp = 0; V.attempts = 0; V.caught = 0; V.brokenBalls = 0;
     V.shinies = 0; V.shiniesCaught = 0; V.shinyWild = 0; V.brokenShiny = 0;
-    V.loot = {}; V.an = null;
+    V.loot = {}; V.an = null; V.drops = null; V.lootGold = 0; V.lootItems = 0;
+    V.capturesGold = 0; V.ballsUsed = 0;
+    P.lootById = Object.create(null);
   };
   // localStorage.setItem e' SINCRONO: serializar V (ate 200 capturas + loot) a cada punhado
   // de mensagens do WS travava o renderer em rajada de kills. Agora escreve no maximo 1x/s,
@@ -208,10 +218,14 @@
           if (typeof m.xpGained === 'number') { V.xp += m.xpGained; V.tot.xp += m.xpGained; }
           // shiny selvagem derrotado = shiny que ESCAPOU (nao virou seu)
           if (m.shiny) { V.shinyWild++; V.tot.shinyWild++; V.shinies++; V.tot.shinies++; }
-          if (Array.isArray(m.loot)) m.loot.forEach(it => { if (it && it.name) bumpLoot(it.name, it.qty || 1); });
+          if (Array.isArray(m.loot)) {
+            // a lista de drops ja mostra os raros com sprite e valor — nada de tag solta
+            m.loot.forEach(it => { if (it && it.itemId != null) P.lootById[it.itemId] = (P.lootById[it.itemId] || 0) + (it.qty || 1); });
+            drops();
+          }
           break;
         case 'catch-result':
-          V.attempts++;
+          V.attempts++; V.ballsUsed++;
           if (m.ballName) P.lastBall = m.ballName;
           if (m.success !== true) {
             V.brokenBalls++; V.tot.brokenBalls++;
@@ -224,6 +238,7 @@
           P.ids[p.id] = 1;
           if (known) break;                            // so atualizou um poke meu
           V.caught++; V.tot.caught++;
+          V.capturesGold += (p.sellValue || 0);        // entra no saldo, como no painel do jogo
           if (p.shiny) { V.shiniesCaught++; V.tot.shiniesCaught++; V.shinies++; V.tot.shinies++; }
           V.lastCatch = { name:p.name, quality:p.quality, ivTotal:p.ivTotal, power:p.power, shiny:!!p.shiny, sellValue:p.sellValue, ball:P.lastBall };
           V.catches.push({ name:p.name, quality:p.quality, ivTotal:p.ivTotal, shiny:!!p.shiny });

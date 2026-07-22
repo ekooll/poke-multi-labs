@@ -172,6 +172,7 @@ function _stateFn () {
           brokenShiny: w.brokenShiny, shiniesCaught: w.shiniesCaught, shinyWild: w.shinyWild, photos: w.photos,
           lastCatch: w.lastCatch, bestCatch: w.bestCatch, catches: w.catches, rareDrops: w.rareDrops,
           potions: w.potions, revives: w.revives, rareItems: w.rareItems, cura: w.cura, usando: w.usando,
+          drops: w.drops, lootGold: w.lootGold, lootItems: w.lootItems, capturesGold: w.capturesGold, ballsUsed: w.ballsUsed,
           ballCounts: w.ballCounts, ballCatalog: w.ballCatalog, msgs: w.msgs, startTs: w.startTs,
           lastMsgTs: w.lastMsgTs, lastKillTs: w.lastKillTs, hunt: w.hunt, an: w.an, tot: w.tot, offline: w.offline }
       }
@@ -208,7 +209,43 @@ function _stateFn () {
       const a = live.an
       anF = { loot: a.lootGold, kills: a.kills, caught: a.captures, saldo: a.balance,
         cashH: a.goldPerHour, xpH: a.xpPerHour, killsH: a.killsPerHour, shinyCaptures: a.shinyCaptures,
-        seconds: a.seconds, drops: a.drops || [], fonte: 'ws' }
+        seconds: a.seconds, lootItems: a.lootItems, capturesGold: a.capturesGold,
+        supplyGold: a.supplyGold, ballsUsed: a.ballsUsed, potionsUsed: a.potionsUsed,
+        drops: a.drops || [], fonte: 'ws' }
+    }
+    // Bloco financeiro no formato do Hunt Analyzer do jogo (Loot + Capturas - Supply).
+    // Enquanto o `analyzer` nao chega (~90s), preenche com o que o bridge somou ao vivo,
+    // valorizado pelo npcPrice do catalogo — marcado como estimativa (`aprox`).
+    let fin = null
+    if (live) {
+      const a = live.an
+      const temAn = !!(a && a.lootGold != null)
+      const loot = temAn ? a.lootGold : live.lootGold
+      const cap = temAn ? a.capturesGold : live.capturesGold
+      const sup = temAn ? a.supplyGold : null
+      if (loot != null) {
+        fin = {
+          loot, lootItens: temAn ? a.lootItems : live.lootItems,
+          capturas: cap, supply: sup,
+          saldo: temAn ? a.balance : (sup != null ? loot + (cap || 0) - sup : null),
+          cashH: temAn ? a.goldPerHour : null,
+          bolas: temAn ? a.ballsUsed : live.ballsUsed,
+          potions: temAn ? a.potionsUsed : null,
+          aprox: !temAn,
+        }
+      }
+    }
+    // tempo na hunt: o analyzer manda em segundos; senao conta desde o field-init
+    let huntSec = null
+    if (live && live.an && live.an.seconds != null) huntSec = live.an.seconds
+    else if (live && live.hunt && live.hunt.since) huntSec = Math.round((Date.now() - live.hunt.since) / 1000)
+    // drops da sessao: os do analyzer (com valor de mercado) tem prioridade; o catalogo
+    // entra so pra dar o sprite de cada item
+    let dropsF = live ? live.drops : null
+    if (live && live.an && Array.isArray(live.an.drops) && live.an.drops.length) {
+      const ico = {}; (live.drops || []).forEach(d => { if (d.icon) ico[d.name] = d.icon })
+      dropsF = live.an.drops.map(d => ({ name: d.name, qty: d.qty, gold: d.gold, icon: ico[d.name] || null }))
+        .sort((x, y) => (y.gold || 0) - (x.gold || 0)).slice(0, 14)
     }
     // Na hunt? o WS sabe de verdade (field-init + kill recente). O DOM so ve o texto
     // "Procurando... selvagem", que some quando o painel esta fechado -> falso "Fora".
@@ -228,6 +265,7 @@ function _stateFn () {
       balls: finalBalls, ballList, ballsTotal, potions: potionsF, revives: revivesF, potionsUsed,
       cura: live ? live.cura : null, usando: live ? live.usando : null,
       rareItems: live ? live.rareItems : null, money, shinies, brokenShiny,
+      fin, huntSec, drops: dropsF,
       photos: live ? live.photos : null, live, an: anF }
   } catch (e) { return { ok: false, err: String((e && e.message) || e) } }
 }

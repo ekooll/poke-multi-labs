@@ -18,6 +18,7 @@
     --radius:16px; --ease:cubic-bezier(.22,.7,.2,1);
   }
   *{box-sizing:border-box}
+  [hidden]{display:none!important}   /* .capbar/.wrap usam display:flex e ignoravam o atributo */
   html,body{margin:0;height:100%;overflow:hidden;color:var(--cream);
     font-family:Inter,system-ui,-apple-system,sans-serif;
     background:radial-gradient(120% 90% at 0% 0%,#1b0f0b 0%,var(--bg) 60%)}
@@ -88,6 +89,91 @@
   .t-red  .ic{color:var(--red-2)}     .t-red .tv{color:var(--bad)}
   .t-mut  .ic{color:var(--faint)}
   .tile.zero .tv{color:var(--bad)}
+
+  /* ---------- abas ---------- */
+  .tabs{display:flex;gap:4px;padding:8px 12px 0;background:#0d0807;border-bottom:1px solid var(--line)}
+  .tab{background:transparent;border:1px solid transparent;border-bottom:0;color:var(--faint);cursor:pointer;
+    font-family:inherit;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+    padding:8px 14px;border-radius:10px 10px 0 0;transition:.16s var(--ease)}
+  .tab:hover{color:var(--muted)}
+  .tab.on{color:var(--gold);border-color:var(--line);background:linear-gradient(180deg,rgba(229,179,79,.09),transparent)}
+
+  /* ---------- VISÃO GERAL: hub no centro, contas em volta, ligadas por linhas ---------- */
+  .hubwrap{position:relative;height:calc(100% - 45px - 37px - 44px);overflow:auto;padding:12px}
+  .hubwrap[hidden]{display:none}
+  .hubwrap::-webkit-scrollbar{width:7px}.hubwrap::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:4px}
+  .links{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+  .hubgrid{position:relative;z-index:1;display:grid;gap:11px;align-items:center;justify-items:stretch}
+  /* nó = card de conta ou o hub */
+  .node{border:1px solid var(--line-strong);border-radius:15px;padding:10px 12px;
+    background:linear-gradient(160deg,rgba(34,20,17,.96),rgba(11,7,6,.97));
+    box-shadow:0 8px 24px rgba(0,0,0,.4);display:flex;flex-direction:column;gap:7px;min-width:0}
+  .node.warn{border-color:rgba(229,179,79,.5)} .node.down{border-color:rgba(226,75,53,.55)}
+  .node .nh{display:flex;align-items:center;gap:8px;padding-bottom:7px;border-bottom:1px solid var(--line)}
+  .node .nn{font-family:'Cinzel',serif;font-weight:800;font-size:14px;color:var(--cream);letter-spacing:.04em;
+    flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .node .nb{font-size:9px;font-weight:800;padding:3px 8px;border-radius:99px;text-transform:uppercase;letter-spacing:.05em}
+  /* as 5 linhas essenciais (pedido do Victor) */
+  .rows{display:flex;flex-direction:column;gap:1px}
+  .row{display:flex;align-items:center;gap:9px;padding:3px 0}
+  .row+.row{border-top:1px solid rgba(216,138,74,.08)}
+  .row .ri{width:20px;height:20px;flex:none;display:grid;place-items:center}
+  .row .ri img{width:19px;height:19px;object-fit:contain;image-rendering:pixelated}
+  .row .ri span{font-size:15px;line-height:1}
+  .row .rl{flex:1;min-width:0;font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+  .row .rv{font-family:'Cinzel',serif;font-weight:800;font-size:14px;color:var(--cream);
+    font-variant-numeric:tabular-nums;white-space:nowrap}
+  .row.zero .rv{color:var(--bad)} .row.warn .rv{color:var(--mid)}
+  .row.profit .rv{font-size:16px} .row.profit .rv.pos{color:var(--good)} .row.profit .rv.neg{color:var(--bad)}
+  /* hub central */
+  .node.hub{border-color:var(--gold);box-shadow:0 0 0 1px rgba(229,179,79,.16),0 14px 40px rgba(0,0,0,.55)}
+  .node.hub .nh{border-bottom-color:var(--line-strong)}
+  .node.hub .nn{color:var(--gold);font-size:15px}
+  .node.hub .row .rv{font-size:16px}
+  .node.hub .row.profit .rv{font-size:19px}
+  .hubtag{font-size:9px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-soft)}
+
+  /* ---------- seções (padrão VPLab: título miúdo dourado + moldura discreta) ---------- */
+  .box{border:1px solid var(--line);border-radius:14px;background:linear-gradient(160deg,rgba(30,18,16,.55),rgba(11,7,6,.6));
+    padding:11px 13px 12px}
+  .box+.box{margin-top:2px}
+  .bh{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:10px}
+  .bt{font-size:9.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--gold-soft)}
+  .bv{font-size:10.5px;color:var(--muted);font-weight:700}
+  .bv.est{color:var(--faint);font-weight:600;font-style:italic}
+  /* stats: valor grande + rótulo miúdo (igual aos mini-cards do "Avaliar IV") */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:9px}
+  .st{background:#0b0706;border:1px solid var(--line);border-radius:11px;padding:9px 10px;min-width:0}
+  .st .sv{font-family:'Cinzel',Georgia,serif;font-weight:800;font-size:18px;line-height:1.1;color:var(--cream);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .st .sl{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:3px}
+  .st .sd{font-size:9.5px;color:var(--faint);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stg{color:var(--gold)} .stc{color:#8d8d9c}
+  /* linhas do saldo */
+  .linhas{display:flex;flex-direction:column;gap:5px}
+  .lin{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:12.5px}
+  .ll{color:var(--muted);font-weight:600} .ll em{font-style:normal;color:var(--faint);font-size:10.5px}
+  .lv{font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .lin.pos .lv{color:var(--good)} .lin.neg .lv{color:var(--bad)}
+  .tot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding:9px 11px;
+    border-radius:11px;background:linear-gradient(90deg,rgba(79,196,122,.1),rgba(79,196,122,.03));
+    border:1px solid rgba(79,196,122,.28)}
+  .tot span{font-size:10.5px;color:var(--muted);font-weight:700}
+  .tot b{font-family:'Cinzel',serif;font-size:18px;font-weight:800;white-space:nowrap}
+  .tot b.pos{color:var(--good)} .tot b.neg{color:var(--bad)}
+  .ph2{display:flex;align-items:center;justify-content:space-between;margin-top:7px;font-size:11px;color:var(--faint)}
+  .ph2 b{color:var(--gold);font-weight:800;font-variant-numeric:tabular-nums}
+  /* drops da sessão */
+  .drops{display:flex;flex-direction:column;gap:2px;max-height:186px;overflow-y:auto}
+  .drops::-webkit-scrollbar{width:6px}.drops::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:3px}
+  .drop{display:flex;align-items:center;gap:8px;font-size:11.5px;padding:3px 0;border-bottom:1px solid rgba(216,138,74,.07)}
+  .drop:last-child{border-bottom:0}
+  .drop .dn{flex:1;min-width:0;display:flex;align-items:center;gap:7px;color:var(--cream);font-weight:600;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .drop img{width:19px;height:19px;object-fit:contain;image-rendering:pixelated;flex:none}
+  .drop .ph{width:19px;height:19px;flex:none;border-radius:4px;background:#170d0b;border:1px solid var(--line)}
+  .drop .dq{color:var(--faint);font-size:10.5px;font-weight:700;white-space:nowrap}
+  .drop .dg{color:var(--good);font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;min-width:64px;text-align:right}
 
   /* ---------- quadro geral ---------- */
   .geral{background:linear-gradient(160deg,rgba(34,20,17,.95),rgba(13,8,7,.96));
@@ -181,7 +267,12 @@
       <button id="x" title="Fechar">✕</button>
     </div>
   </div>
-  <div class="capbar">
+  <div class="tabs">
+    <button class="tab on" data-tab="geral">Visão geral</button>
+    <button class="tab" data-tab="det">Detalhado</button>
+  </div>
+  <div class="hubwrap" id="viewGeral"><svg class="links" id="links"></svg><div class="hubgrid" id="hubgrid"></div></div>
+  <div class="capbar" id="capbar" hidden>
     <span>Capturas</span>
     <select id="capfilter">
       <option value="all">Todas as qualidades</option>
@@ -196,7 +287,7 @@
       <option value="4.0">Divina</option>
     </select>
   </div>
-  <div class="wrap" id="wrap"><div class="na">carregando…</div></div>
+  <div class="wrap" id="wrap" hidden><div class="na">carregando…</div></div>
   <div class="ft">
     <label><input type="checkbox" id="auto" checked /> auto (4s)</label>
     <label>avisar &lt; <input type="number" id="lowball" value="500"> bolas</label>
@@ -217,6 +308,9 @@
   const nameOf = (n) => namesMap()[n] || ('Conta ' + n)
   // ícone local só como fallback calibrado (sprites markitems são 32x32 com a bola de 15x15)
   const BALL_ICON = { poke:'https://poke.idleworld.online/assets/markitems/pokeball.png', great:'https://poke.idleworld.online/assets/markitems/greatball.png', super:'https://poke.idleworld.online/assets/markitems/superball.png', ultra:'https://poke.idleworld.online/assets/markitems/ultraball.png', idle:'https://poke.idleworld.online/assets/markitems/idleball.png' }
+  // sprites de reserva (o do jogo entra assim que o inventário chega)
+  const BALLBACK = { potion:'https://poke.idleworld.online/assets/markitems/ultra_potion.png',
+    revive:'https://poke.idleworld.online/assets/markitems/revive.png' }
   const BALL_ORDER = ['poke','great','super','ultra','idle','master']
   const BALL_LABELS = { poke:'Poké', great:'Great', super:'Super', ultra:'Ultra', idle:'Idle', master:'Master' }
   // faixas conferem com a tabela oficial do jogo (pokepedia /systems/quality)
@@ -252,6 +346,12 @@
     espada:'<svg viewBox="0 0 24 24"><path d="M6.9 2 3 3l1 3.9 9.4 9.4 2.9-2.9L6.9 2Zm10.7 13.4-2.2 2.2 1.4 1.4-1 1 1.4 1.5 1.1-1 1.4 1.5 1.5-1.5-3.6-5.1ZM21 3l-3.9 1-4.6 6.4 2.1 2.1L21 6.9 21 3ZM5.6 15.4 2 20.5 3.5 22l1.4-1.5 1.1 1L7.4 20l-1-1 1-1-1.8-2.6Z"/></svg>',
     alvo:'<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 3a7 7 0 1 1 0 14 7 7 0 0 1 0-14Zm0 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 2.6a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8Z"/></svg>',
   }
+  // stat no padrão do VPLab (aba Avaliar IV): valor grande em cima, rótulo miúdo embaixo.
+  // Sem ícone genérico — ícone aqui só quando existe o SPRITE de verdade do item.
+  const stat = (v, lbl, det)=>'<div class="st"><div class="sv">'+v+'</div><div class="sl">'+lbl+'</div>'+
+    (det?'<div class="sd">'+det+'</div>':'')+'</div>'
+  const dur = (s)=>{ s=Math.max(0,Math.round(s||0)); const H=Math.floor(s/3600), M=Math.floor(s%3600/60)
+    return H? H+'h '+String(M).padStart(2,'0')+'m' : M+'m' }
   // tile do Modelo 3: ícone quadrado colorido + rótulo em caixa alta + valor grande + sub
   function tile (cls, ico, k, v, sub, extra){
     const img = /^https?:/.test(ico) ? '<img src="'+esc(ico)+'" alt="">' : (SVG[ico] || ico)
@@ -293,23 +393,49 @@
     const info=[]; if(st.level!=null)info.push('Nível '+st.level); if(st.zone)info.push(st.zone); if(st.active)info.push(st.active)
     if(info.length) h+='<div class="sub">'+esc(info.join('  ·  '))+'</div>'
 
-    // ---- tiles da conta ----
+    // ---- SESSÃO ATUAL: os mesmos números do Hunt Analyzer do jogo ----
     const k=(A&&A.kills!=null)?A.kills:L.kills, c=(A&&A.caught!=null)?A.caught:L.caught
     const att=(L.caught||0)+(L.brokenBalls||0), taxa=att>0?(L.caught/att*100):null
-    let xph=null, aprox=''
+    let xph=null, apx=''
     if(A&&A.xpH!=null) xph=A.xpH
-    else { const hrs=L.startTs?(Date.now()-L.startTs)/3600000:0; if(hrs>0.004){ xph=Math.round(L.xp/hrs); aprox='~' } }
-    let t=''
-    if(A&&A.loot!=null) t+=tile('t-gold','$','Loot',money(A.loot),A.cashH!=null?money(A.cashH)+'/h':'')
-    if(xph!=null) t+=tile('t-xp','XP','XP da hunt',aprox+curto(xph),'por hora')
-    // 6 tiles = 2 fileiras de 3 certinhas. As capturas ja aparecem no cabecalho da conta,
-    // entao viram o subtexto da taxa em vez de um 7o tile orfao numa linha so.
-    if(taxa!=null) t+=tile('t-good','%','Taxa de captura',taxa.toFixed(2).replace('.',',')+'%',fmt(c||0)+' de '+fmt(att)+' tentativas')
-    if(k!=null) t+=tile('t-good','espada','Kills',curto(k),fmt(k)+' derrotados')
-    // shiny: só as estrelas — dourada pro capturado, cinza pro perdido
-    t+=tile('t-gold','★','Caught shiny',fmt(L.shiniesCaught||0),(st.photos!=null?fmt(st.photos)+' achados na hunt':''))
-    t+=tile('t-mut','★','Broken shiny',fmt(st.brokenShiny||0),(L.shinyWild?fmt(L.shinyWild)+' escaparam':''))
-    if(t) h+='<div class="tiles">'+t+'</div>'
+    else { const hrs=L.startTs?(Date.now()-L.startTs)/3600000:0; if(hrs>0.004){ xph=Math.round(L.xp/hrs); apx='~' } }
+    const xp=(A&&A.xp!=null)?A.xp:L.xp
+    let s=''
+    if(k!=null) s+=stat(curto(k),'derrotados',fmt(k))
+    if(c!=null) s+=stat(fmt(c),'capturados',att?fmt(att)+' tentativas':'')
+    if(taxa!=null) s+=stat(taxa.toFixed(2).replace('.',',')+'%','taxa de captura','')
+    if(xp) s+=stat(curto(xp),'xp ganha',fmt(xp))
+    if(xph!=null) s+=stat(apx+curto(xph),'xp por hora','')
+    if(A&&A.killsH!=null) s+=stat(fmt(A.killsH),'kills por hora','')
+    if(s) h+='<section class="box"><div class="bh"><span class="bt">Sessão atual</span>'+
+      (st.huntSec?'<span class="bv">'+dur(st.huntSec)+' na hunt</span>':'')+'</div><div class="stats">'+s+'</div></section>'
+
+    // ---- SALDO: Loot + Capturas − Supply, como o painel do jogo ----
+    const F=st.fin
+    if(F && F.loot!=null){
+      const li=(v,lbl,det,cls)=>'<div class="lin '+(cls||'')+'"><span class="ll">'+lbl+(det?' <em>'+esc(det)+'</em>':'')+'</span><span class="lv">'+v+'</span></div>'
+      let b=''
+      b+=li('+'+money(F.loot),'Loot',F.lootItens?fmt(F.lootItens)+' itens':'','pos')
+      if(F.capturas) b+=li('+'+money(F.capturas),'Capturas','','pos')
+      if(F.supply!=null) b+=li('−'+money(Math.abs(F.supply)),'Supply',
+        [F.bolas?fmt(F.bolas)+' bolas':'',F.potions?fmt(F.potions)+' potions':''].filter(Boolean).join(' · '),'neg')
+      const saldo=F.saldo
+      h+='<section class="box"><div class="bh"><span class="bt">Saldo da hunt</span>'+
+        (F.aprox?'<span class="bv est">estimado · preço de NPC</span>':'')+'</div>'+
+        '<div class="linhas">'+b+'</div>'+
+        (saldo!=null?'<div class="tot"><span>Loot + Capturas − Supply</span><b class="'+(saldo<0?'neg':'pos')+'">'+
+          (saldo<0?'':'+')+money(saldo)+'</b></div>':'')+
+        (F.cashH!=null?'<div class="ph2"><span>por hora</span><b>'+(F.cashH<0?'':'+')+money(F.cashH)+'/h</b></div>':'')+
+      '</section>'
+    }
+
+    // ---- SHINY: só as estrelas (dourada = seu, cinza = perdido) ----
+    h+='<section class="box"><div class="bh"><span class="bt">Shiny</span>'+
+      (st.photos!=null?'<span class="bv">'+fmt(st.photos)+' achados na hunt</span>':'')+'</div>'+
+      '<div class="stats">'+
+        stat('<span class="stg">★</span> '+fmt(L.shiniesCaught||0),'caught shiny','')+
+        stat('<span class="stc">★</span> '+fmt(st.brokenShiny||0),'broken shiny',L.shinyWild?fmt(L.shinyWild)+' escaparam':'')+
+      '</div></section>'
 
     // ---- HP do time (barra estilo "Progresso da Hunt") ----
     if(st.hp!=null && st.hpMax){
@@ -345,6 +471,14 @@
         '<div class="items">'+its+'</div></div>'
     }
 
+    // ---- DROPS DA SESSÃO: sprite + nome + ×N + valor, como no painel do jogo ----
+    if(Array.isArray(st.drops)&&st.drops.length){
+      const li=st.drops.map(d=>'<div class="drop"><span class="dn">'+
+        (d.icon?'<img src="'+esc(d.icon)+'" alt="">':'<i class="ph"></i>')+esc(d.name)+'</span>'+
+        '<span class="dq">×'+fmt(d.qty)+'</span><span class="dg">'+money(d.gold||0)+'</span></div>').join('')
+      h+='<section class="box"><div class="bh"><span class="bt">Drops da sessão</span></div><div class="drops">'+li+'</div></section>'
+    }
+
     // ---- capturas ----
     const ult = (capFilter==='all') ? L.lastCatch : ((L.catches||[]).slice().reverse().find(passaFiltro)||null)
     if(ult){ h+='<div class="last">'+(ult.shiny?'★ ':'🎁 ')+(capFilter==='all'?'última':'última '+capLabel())+': '+
@@ -370,7 +504,97 @@
     return parts.join('') || '<span>—</span>'
   }
 
+  // ===================== VISÃO GERAL (hub + contas em volta) =====================
+  // As 5 linhas que o Victor pediu: pokébola, potion, revive, lendários e profit.
+  // "Lendário" = captura com qualidade ≥ 1,7 (o tier Lendária da tabela do jogo).
+  const LEND = 1.7
+  const lendarios = (st)=>{ const c=st&&st.live&&st.live.catches; return Array.isArray(c)?c.filter(x=>(x.quality||0)>=LEND).length:0 }
+  const spriteDe = (lista,cat)=>{ // ícone do item mais abundante daquela categoria na mochila
+    if(!Array.isArray(lista))return null
+    const c=lista.filter(x=>x.tipo===cat&&x.icon).sort((a,b)=>b.qty-a.qty)[0]
+    return c?c.icon:null }
+  const linha = (ico,lbl,val,cls)=>'<div class="row '+(cls||'')+'"><span class="ri">'+
+    (ico&&/^https?:|^data:/.test(ico)?'<img src="'+esc(ico)+'" alt="">':'<span>'+(ico||'')+'</span>')+
+    '</span><span class="rl">'+lbl+'</span><span class="rv">'+val+'</span></div>'
+
+  function cardConta (r){
+    const st=r.state, a=alertOf(st), nm=nameOf(r.num)
+    if(!st||st.ok===false) return '<div class="node down" data-node="'+r.num+'"><div class="nh">'+
+      '<span class="nn">'+esc(nm)+'</span><span class="nb b-down">'+a.txt+'</span></div>'+
+      '<div class="na">sem resposta</div></div>'
+    const pot=spriteDe(st.cura,'heal')||BALLBACK.potion, rev=spriteDe(st.cura,'revive')||BALLBACK.revive
+    const bola=(st.ballList&&st.ballList.length&&(BALL_ICON[st.ballList[0].key]||st.ballList[0].icon))||BALL_ICON.poke
+    const saldo=st.fin&&st.fin.saldo
+    return '<div class="node '+a.cls+'" data-node="'+r.num+'"><div class="nh">'+
+      '<span class="nn">'+esc(nm)+'</span><span class="nb '+a.badge+'">'+a.txt+'</span></div><div class="rows">'+
+      linha(bola,'Pokébola',fmt(st.ballsTotal||0), (st.ballsTotal===0?'zero':(st.ballsTotal<LOW?'warn':'')))+
+      linha(pot,'Potion',st.potions!=null?fmt(st.potions):'—', st.potions===0?'zero':'')+
+      linha(rev,'Revive',st.revives!=null?fmt(st.revives):'—', st.revives===0?'zero':'')+
+      linha('★','Lendários',fmt(lendarios(st)))+
+      linha('$','Profit',saldo!=null?'<span class="'+(saldo<0?'neg':'pos')+'">'+(saldo<0?'':'+')+money(saldo)+'</span>':'—','profit')+
+      '</div></div>'
+  }
+
+  function cardHub (rows){
+    let bolas=0,pot=0,rev=0,lend=0,profit=0,temPot=false,temRev=false,temProfit=false,pico=null,rico=null
+    rows.forEach(r=>{ const st=r.state; if(!st||st.ok===false)return
+      bolas+=st.ballsTotal||0
+      if(st.potions!=null){pot+=st.potions;temPot=true; if(!pico)pico=spriteDe(st.cura,'heal')}
+      if(st.revives!=null){rev+=st.revives;temRev=true; if(!rico)rico=spriteDe(st.cura,'revive')}
+      lend+=lendarios(st)
+      if(st.fin&&st.fin.saldo!=null){profit+=st.fin.saldo;temProfit=true} })
+    const vivas=rows.filter(r=>alertOf(r.state).badge==='b-ok').length
+    return '<div class="node hub" data-node="hub"><div class="nh">'+
+      '<span class="nn">Total</span><span class="hubtag">'+vivas+'/'+rows.length+' na hunt</span></div><div class="rows">'+
+      linha(BALL_ICON.poke,'Pokébolas',fmt(bolas))+
+      linha(pico||BALLBACK.potion,'Potions',temPot?fmt(pot):'—')+
+      linha(rico||BALLBACK.revive,'Revives',temRev?fmt(rev):'—')+
+      linha('★','Lendários',fmt(lend))+
+      linha('$','Profit total',temProfit?'<span class="'+(profit<0?'neg':'pos')+'">'+(profit<0?'':'+')+money(profit)+'</span>':'—','profit')+
+      '</div></div>'
+  }
+
+  // posições em volta do hub (grid 3x3): o hub fica no meio e as contas nos cantos/lados,
+  // acompanhando como as telas estão dispostas no app
+  const VOLTA = {
+    1: [[2,3]],
+    2: [[2,1],[2,3]],
+    3: [[1,1],[1,3],[3,2]],
+    4: [[1,1],[1,3],[3,1],[3,3]],
+  }
+  function renderGeralHub (rows){
+    const n=Math.min(rows.length,4), pos=VOLTA[n]||VOLTA[4]
+    const g=$('#hubgrid')
+    g.style.gridTemplateColumns='repeat(3,1fr)'
+    g.style.gridTemplateRows = n<=2 ? 'auto' : 'repeat(3,auto)'
+    let html=''
+    rows.slice(0,4).forEach((r,i)=>{ const p=pos[i]||[1,1]
+      html+='<div style="grid-row:'+(n<=2?1:p[0])+';grid-column:'+p[1]+'">'+cardConta(r)+'</div>' })
+    html+='<div style="grid-row:'+(n<=2?1:2)+';grid-column:2">'+cardHub(rows)+'</div>'
+    g.innerHTML=html
+    requestAnimationFrame(()=>desenhaLinks(rows.length))
+  }
+
+  // liga cada card ao hub com uma linha dourada (some quando não há espaço)
+  function desenhaLinks (qtd){
+    const svg=$('#links'), wrap=$('#viewGeral'), hub=document.querySelector('[data-node="hub"]')
+    if(!svg||!hub){ if(svg)svg.innerHTML=''; return }
+    const base=wrap.getBoundingClientRect(), H=hub.getBoundingClientRect()
+    const cx=H.left-base.left+H.width/2+wrap.scrollLeft, cy=H.top-base.top+H.height/2+wrap.scrollTop
+    let d=''
+    document.querySelectorAll('[data-node]:not([data-node="hub"])').forEach(el=>{
+      const r=el.getBoundingClientRect()
+      const x=r.left-base.left+r.width/2+wrap.scrollLeft, y=r.top-base.top+r.height/2+wrap.scrollTop
+      d+='<line x1="'+cx+'" y1="'+cy+'" x2="'+x+'" y2="'+y+'" stroke="url(#lg)" stroke-width="1.5" stroke-linecap="round"/>'
+      d+='<circle cx="'+x+'" cy="'+y+'" r="2.5" fill="#e5b34f" opacity=".55"/>'
+    })
+    svg.innerHTML='<defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">'+
+      '<stop offset="0%" stop-color="#e5b34f" stop-opacity=".55"/>'+
+      '<stop offset="100%" stop-color="#d98350" stop-opacity=".12"/></linearGradient></defs>'+d
+  }
+
   function render (rows){
+    renderGeralHub(rows)
     const wrap=$('#wrap')
     wrap.innerHTML = renderGeral(rows) + rows.map(r=>{
       const st=r.state, a=alertOf(st), nm=nameOf(r.num), open=openSet.has(r.num)
@@ -407,6 +631,19 @@
     }catch(e){ $('#wrap').innerHTML='<div class="na">Erro: '+esc(e.message)+'</div>' }
     finally{ busy=false }
   }
+
+  // abas: "Visão geral" (o essencial, hub) e "Detalhado" (o resto)
+  let aba = localStorage.getItem('pml_aba') || 'geral'
+  function pintaAba (){
+    document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===aba))
+    $('#viewGeral').hidden = aba!=='geral'
+    $('#wrap').hidden = aba!=='det'
+    $('#capbar').hidden = aba!=='det'
+    if(aba==='geral') requestAnimationFrame(()=>desenhaLinks())
+  }
+  document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{ aba=b.dataset.tab; localStorage.setItem('pml_aba',aba); pintaAba() })
+  pintaAba()
+  window.addEventListener('resize',()=>{ if(aba==='geral') desenhaLinks() })
 
   $('#x').onclick=()=>window.close()
   let pinned=false
