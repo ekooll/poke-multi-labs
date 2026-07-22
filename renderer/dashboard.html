@@ -68,6 +68,20 @@
   .pill[hidden]{display:none}
   .pill i{color:var(--faint);font-style:normal;font-weight:600;font-size:11px}
   .pill.zero{border-color:rgba(226,75,53,.5);color:#ff9d8d}
+  .ballimg{width:20px;height:20px;object-fit:contain;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}
+  .capbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:2px 0 8px}
+  .capbar-t{font-size:10px;color:var(--gold-soft);text-transform:uppercase;letter-spacing:.08em;font-weight:800;margin-right:2px}
+  .capf{background:#0d0807;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:5px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit}
+  .capf.on{border-color:var(--gold);color:var(--gold);background:rgba(229,179,79,.13)}
+  .c-catches{display:flex;flex-direction:column;gap:4px;border-top:1px dashed var(--line);padding-top:8px;max-height:170px;overflow-y:auto}
+  .c-catches[hidden]{display:none}
+  .c-catches::-webkit-scrollbar{width:6px}.c-catches::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:3px}
+  .cap{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}
+  .cap .cn{color:var(--cream);font-weight:700}
+  .cap .civ{color:var(--faint);font-size:11px}
+  .cap .cq{font-weight:800;white-space:nowrap}
+  .cap.sh{background:rgba(229,179,79,.1);border-radius:6px;padding:2px 6px}
+  .cap.sh .cn::before{content:'✨ '}
   .analyzer{border-top:1px dashed var(--line);padding-top:7px;display:flex;flex-wrap:wrap;gap:5px 8px}
   .analyzer[hidden]{display:none}
   .stat{font-size:12.5px;color:var(--muted)}
@@ -117,6 +131,7 @@
   <div class="rgrip" id="rgrip" title="Arraste pra redimensionar"></div>
 <script>
   const $ = (s) => document.querySelector(s)
+  const $$ = (s) => document.querySelectorAll(s)
   const namesMap = () => { try { return JSON.parse(localStorage.getItem('pml_names') || '{}') } catch { return {} } }
   const nameOf = (n) => namesMap()[n] || ('Conta ' + n)
   const fmt = (n) => Number(n || 0).toLocaleString('pt-BR')
@@ -124,6 +139,15 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
   const BALL_LABELS = { poke: 'Poké', great: 'Great', super: 'Super', ultra: 'Ultra', idle: 'Idle', master: 'Master' }
   const BALL_ORDER = ['poke', 'great', 'super', 'ultra', 'idle', 'master']
+  const BALL_ICON = {
+    poke: 'https://poke.idleworld.online/assets/markitems/pokeball.png',
+    great: 'https://poke.idleworld.online/assets/markitems/greatball.png',
+    super: 'https://poke.idleworld.online/assets/markitems/superball.png',
+    ultra: 'https://poke.idleworld.online/assets/markitems/ultraball.png',
+    idle: 'https://poke.idleworld.online/assets/markitems/idleball.png'
+  }
+  function qtier (q) { if (q == null) return ''; if (q < 1.0) return 'Fraca'; if (q < 1.1) return 'Comum'; if (q < 1.3) return 'Incomum'; if (q < 1.5) return 'Rara'; if (q < 1.7) return 'Épica'; if (q < 2.0) return 'Lendária'; if (q < 3.0) return 'Mítica'; if (q < 4.0) return 'Anciã'; return 'Divina' }
+  let catchFilter = 'all'  // filtro global das capturas: all | shiny | epic
   let busy = false
   let LOW = parseInt(localStorage.getItem('pml_lowball') || '500') || 500
 
@@ -157,7 +181,7 @@
       '<div class="hpbar c-hpbar" hidden><div class="hpfill"></div></div>' +
       '<div class="sub c-hpline" hidden></div>' +
       '<div class="pills c-pills">' +
-        BALL_ORDER.map(k => '<span class="pill pb-' + k + '" hidden><i>' + BALL_LABELS[k] + '</i><b></b></span>').join('') +
+        BALL_ORDER.map(k => '<span class="pill pb-' + k + '" hidden title="' + BALL_LABELS[k] + '">' + (BALL_ICON[k] ? '<img class="ballimg" src="' + BALL_ICON[k] + '" alt="' + BALL_LABELS[k] + '">' : '<i>' + BALL_LABELS[k] + '</i>') + '<b></b></span>').join('') +
         '<span class="pill pb-potions" hidden><i>Potions</i><b></b></span>' +
         '<span class="pill pb-revives" hidden><i>Revives</i><b></b></span>' +
         '<span class="pill pb-shiny" hidden style="border-color:rgba(229,179,79,.55);color:var(--gold)"><i>✨ Shiny</i><b></b></span>' +
@@ -171,7 +195,8 @@
       '<div class="c-intel" hidden></div>' +
       '<div class="c-rare" hidden></div>' +
       '<div class="sub c-last" hidden></div>' +
-      '<div class="analyzer c-an" hidden></div>'
+      '<div class="analyzer c-an" hidden></div>' +
+      '<div class="c-catches" hidden></div>'
   }
   function buildLayout (results) {
     const key = results.map(r => r.num).join(',')
@@ -187,7 +212,14 @@
         '<div class="tile good t-cash-tile" hidden><div class="k">Cash/h</div><div class="v t-cash"></div></div>' +
       '</div>' +
       '<div class="chart t-chart" hidden><div class="ct">Loot por conta</div><div class="t-chart-rows"></div></div>' +
+      '<div class="capbar">' +
+        '<span class="capbar-t">Capturas</span>' +
+        '<button class="capf" data-f="all">Todas</button>' +
+        '<button class="capf" data-f="shiny">✨ Shiny</button>' +
+        '<button class="capf" data-f="epic">💎 Épica+</button>' +
+      '</div>' +
       '<div class="cards"></div>'
+    $$('.capf').forEach(b => { b.classList.toggle('on', b.dataset.f === catchFilter); b.onclick = () => { catchFilter = b.dataset.f; $$('.capf').forEach(x => x.classList.toggle('on', x.dataset.f === catchFilter)); refresh() } })
     const cardsDiv = $('#wrap .cards')
     results.forEach(r => {
       const el = document.createElement('div')
@@ -238,9 +270,21 @@
     if (st.live && st.live.lastCatch) {
       const c = st.live.lastCatch
       const q = c.quality != null ? Number(c.quality).toFixed(3) : '?'
-      setT(el, '.c-last', '🎁 última: ' + (c.shiny ? '✨ ' : '') + (c.name || '?') + '  ·  Q ' + q + '  ·  IV ' + (c.ivTotal != null ? c.ivTotal : '?'))
+      setT(el, '.c-last', '🎁 última: ' + (c.shiny ? '✨ ' : '') + (c.name || '?') + '  ·  ' + qtier(c.quality) + ' Q' + q + '  ·  IV ' + (c.ivTotal != null ? c.ivTotal : '?'))
       show(el, '.c-last', true)
     } else show(el, '.c-last', false)
+    // lista de capturas (filtro global: todas / shiny / epica+)
+    if (st.live && Array.isArray(st.live.catches) && st.live.catches.length) {
+      let list = st.live.catches.slice()
+      if (catchFilter === 'shiny') list = list.filter(c => c.shiny)
+      else if (catchFilter === 'epic') list = list.filter(c => (c.quality || 0) >= 1.5)
+      list = list.slice(-30).reverse()
+      const TCOL = { 'Épica': '#b07bd8', 'Lendária': '#e5b34f', 'Mítica': '#ff6bd0', 'Anciã': '#ff8f3d', 'Divina': '#5fe0e0', 'Rara': '#5b9be6', 'Incomum': '#5fd38a', 'Comum': '#c9c9c9', 'Fraca': '#8a8f97' }
+      const h = list.map(c => { const t = qtier(c.quality); const col = TCOL[t] || 'var(--muted)'; return '<div class="cap' + (c.shiny ? ' sh' : '') + '"><span class="cn">' + esc(c.name || '?') + ' <span class="civ">IV ' + (c.ivTotal != null ? c.ivTotal : '?') + '</span></span><span class="cq" style="color:' + col + '">' + t + ' ' + (c.quality != null ? Number(c.quality).toFixed(2) : '?') + '</span></div>' }).join('')
+      const cel = el.querySelector('.c-catches')
+      if (cel.dataset.h !== h) { cel.dataset.h = h; cel.innerHTML = h }
+      cel.hidden = !h
+    } else show(el, '.c-catches', false)
     // inteligência de hunt (calculada do live)
     if (st.live && st.live.kills != null) {
       const L = st.live
