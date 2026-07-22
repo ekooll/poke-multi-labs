@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800&family=Inter:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* Card que flutua SOBRE a tela do jogo daquela conta (um por conta).
+     Fundo transparente: só o card aparece, no estilo do site. */
+  :root{
+    --line:rgba(216,138,74,.2); --line-strong:rgba(229,179,79,.45);
+    --gold:#e5b34f; --gold-soft:#d98350; --cream:#f7eee7;
+    --muted:#b5a196; --faint:#8a7a70; --good:#4fc47a; --mid:#e0a93c; --bad:#ff6b55;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:transparent;overflow:hidden;
+    color:var(--cream);font-family:Inter,system-ui,sans-serif;
+    -webkit-user-select:none;cursor:default}
+  .card{position:relative;overflow:hidden;margin:10px;border:1px solid var(--line-strong);
+    border-radius:15px;padding:10px 12px 11px;
+    background:linear-gradient(160deg,rgba(30,18,16,.93),rgba(9,6,5,.94));
+    box-shadow:0 14px 40px rgba(0,0,0,.7),0 0 0 1px rgba(229,179,79,.1);
+    backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
+  /* cantos ornamentados, como as molduras do site */
+  .card::before,.card::after{content:"";position:absolute;width:14px;height:14px;
+    border-color:var(--gold);opacity:.6;pointer-events:none}
+  .card::before{top:5px;left:5px;border-top:2px solid;border-left:2px solid;border-top-left-radius:7px}
+  .card::after{bottom:5px;right:5px;border-bottom:2px solid;border-right:2px solid;border-bottom-right-radius:7px}
+  .art{position:absolute;right:6px;top:-6px;height:74px;opacity:.5;image-rendering:pixelated;
+    pointer-events:none;-webkit-mask-image:linear-gradient(90deg,transparent,#000 55%)}
+  .h{display:flex;align-items:center;gap:8px;padding-bottom:7px;margin-bottom:7px;
+    border-bottom:1px solid var(--line);position:relative;z-index:2}
+  .n{font-family:'Cinzel',Georgia,serif;font-weight:800;font-size:14px;letter-spacing:.04em;
+    flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    text-shadow:0 2px 8px rgba(0,0,0,.8)}
+  .b{font-size:8.5px;font-weight:800;padding:3px 8px;border-radius:99px;text-transform:uppercase;letter-spacing:.06em}
+  .b-ok{color:#0c1a10;background:var(--good)} .b-warn{color:#1a1405;background:var(--mid)} .b-down{color:#fff;background:#e24b35}
+  .rows{position:relative;z-index:2;display:flex;flex-direction:column}
+  .r{display:flex;align-items:center;gap:8px;padding:3px 0}
+  .r+.r{border-top:1px solid rgba(216,138,74,.09)}
+  .r .i{width:19px;height:19px;flex:none;display:grid;place-items:center}
+  .r .i img{width:19px;height:19px;object-fit:contain;image-rendering:pixelated}
+  .r .i span{font-size:13px;line-height:1;color:var(--gold)}
+  .r .l{flex:1;min-width:0;font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .r .v{font-family:'Cinzel',serif;font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;
+    white-space:nowrap;text-shadow:0 2px 8px rgba(0,0,0,.8)}
+  .r.zero .v{color:var(--bad)} .r.warn .v{color:var(--mid)}
+  .v.pos{color:var(--good)} .v.neg{color:var(--bad)}
+  .off{padding:14px;text-align:center;color:var(--faint);font-style:italic;font-size:11px}
+</style>
+</head>
+<body>
+  <div id="app"><div class="card"><div class="off">…</div></div></div>
+<script>
+  const NUM = +(new URLSearchParams(location.search).get('num') || 0)
+  const GAME = 'https://poke.idleworld.online'
+  const DEX = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/'
+  const fmt = (n)=>Number(n||0).toLocaleString('pt-BR')
+  const money = (n)=>(n<0?'-$':'$')+Math.abs(Number(n||0)).toLocaleString('pt-BR')
+  const esc = (s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
+  const url = (s)=> !s ? null : (/^(https?:|data:)/.test(s) ? s : (s.charAt(0)==='/' ? GAME+s : GAME+'/assets/items/'+s))
+  const ehImg = (s)=> !!s && (/^(https?:|data:)/.test(s) || s.indexOf('/')>=0)
+  const POKE = GAME+'/assets/markitems/pokeball.png'
+  const BACK = { potion: GAME+'/assets/markitems/ultra_potion.png', revive: GAME+'/assets/markitems/revive.png' }
+  const nameOf = (n)=>{ try{ return (JSON.parse(localStorage.getItem('pml_names')||'{}'))[n] || ('Conta '+n) }catch{ return 'Conta '+n } }
+  const lowBall = ()=>parseInt(localStorage.getItem('pml_lowball')||'500')||500
+  const LEND = 1.7
+  const lendarios = (st)=>{ const c=st&&st.live&&st.live.catches; return Array.isArray(c)?c.filter(x=>(x.quality||0)>=LEND).length:0 }
+  const spriteDe = (lista,cat)=>{ if(!Array.isArray(lista))return null
+    const c=lista.filter(x=>x.tipo===cat&&x.icon).sort((a,b)=>b.qty-a.qty)[0]; return c?c.icon:null }
+
+  function alertOf (st){
+    if(!st||st.ok===false) return { badge:'b-down', txt:'Off' }
+    if(st.live&&st.live.offline) return { badge:'b-down', txt:'Caiu' }
+    if(st.balls&&Object.keys(st.balls).length){
+      if(st.ballsTotal===0) return { badge:'b-down', txt:'Sem bolas' }
+      if(st.ballsTotal<lowBall()) return { badge:'b-warn', txt:'Bolas' }
+    }
+    if(!st.hunt||!st.hunt.seen) return { badge:'b-warn', txt:'Fora' }
+    return { badge:'b-ok', txt:'Hunt' }
+  }
+  const linha = (src,lbl,val,cls)=>'<div class="r '+(cls||'')+'"><span class="i">'+
+    (ehImg(src)?'<img src="'+esc(url(src))+'" alt="">':'<span>'+(src||'')+'</span>')+
+    '</span><span class="l">'+lbl+'</span><span class="v">'+val+'</span></div>'
+
+  async function tick (){
+    if(document.hidden) return
+    let st=null
+    try{ const r=await window.ml.readDashboard()
+      const row=(r&&r.results||[]).find(x=>x.num===NUM); st=row&&row.state }catch(e){}
+    const a=alertOf(st)
+    if(!st||st.ok===false){
+      document.getElementById('app').innerHTML='<div class="card"><div class="h">'+
+        '<span class="n">'+esc(nameOf(NUM))+'</span><span class="b '+a.badge+'">'+a.txt+'</span></div>'+
+        '<div class="off">sem dados ainda</div></div>'
+      return
+    }
+    const dex = st.lider && st.lider.speciesId
+    const bola=(st.ballList&&st.ballList.length&&st.ballList[0].icon)||POKE
+    const pot=spriteDe(st.cura,'heal')||BACK.potion, rev=spriteDe(st.cura,'revive')||BACK.revive
+    const saldo=st.fin&&st.fin.saldo
+    document.getElementById('app').innerHTML='<div class="card">'+
+      (dex?'<img class="art" src="'+DEX+'versions/generation-v/black-white/animated/'+dex+'.gif" '+
+        'onerror="this.onerror=null;this.src=\''+DEX+dex+'.png\'" alt="">':'')+
+      '<div class="h"><span class="n">'+esc(nameOf(NUM))+'</span>'+
+        '<span class="b '+a.badge+'">'+a.txt+'</span></div><div class="rows">'+
+      linha(bola,'Pokébola',fmt(st.ballsTotal||0), st.ballsTotal===0?'zero':(st.ballsTotal<lowBall()?'warn':''))+
+      linha(pot,'Potion',st.potions!=null?fmt(st.potions):'—', st.potions===0?'zero':'')+
+      linha(rev,'Revive',st.revives!=null?fmt(st.revives):'—', st.revives===0?'zero':'')+
+      linha('★','Lendários',fmt(lendarios(st)))+
+      linha('$','Profit',saldo!=null?'<span class="v '+(saldo<0?'neg':'pos')+'">'+(saldo<0?'':'+')+money(saldo)+'</span>':'—')+
+      '</div></div>'
+  }
+  setInterval(tick, 4000); tick()
+</script>
+</body>
+</html>

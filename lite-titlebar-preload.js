@@ -1,4 +1,5 @@
 const { contextBridge, ipcRenderer } = require('electron');
+// (o objeto exposto abaixo ganha tambem toggleOverlay/getOverlay)
 contextBridge.exposeInMainWorld('win', {
   minimize:  () => ipcRenderer.send('win:minimize'),
   maximize:  () => ipcRenderer.send('win:maximize'),
@@ -9,4 +10,6 @@ contextBridge.exposeInMainWorld('win', {
   getFps:    () => ipcRenderer.invoke('lite:fps-state'),
   toggleStats: () => ipcRenderer.invoke('lite:stats'),
   getStats:    () => ipcRenderer.invoke('lite:stats-state'),
+  toggleOverlay: () => ipcRenderer.invoke('lite:overlay'),
+  getOverlay:    () => ipcRenderer.invoke('lite:overlay-state'),
 });

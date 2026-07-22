@@ -41,6 +41,7 @@
     <button class="eco" id="eco" title="Economiza CPU: 30fps na tela em que voce esta mexendo, 15fps nas outras (OFF = 60/30)">🔋 Eco: ON</button>
     <button class="fps off" id="fps" title="Mostrar FPS no canto de cada tela">📈 FPS: OFF</button>
     <button class="stats off" id="stats" title="Modo estatísticas: jogos ao fundo (1fps) + stats na tela toda">📊 Stats: OFF</button>
+    <button class="stats" id="ovl" title="Card de cada conta flutuando sobre a tela dela (a área do card não recebe clique do jogo)">🃏 Cards: ON</button>
     <div class="spacer"></div>
     <div class="ctrls">
       <button id="min" title="Minimizar">—</button>
@@ -61,6 +62,10 @@
   const paintStats = (on) => { stats.classList.toggle('off', !on); stats.textContent = on ? '📊 Stats: ON' : '📊 Stats: OFF'; };
   stats.onclick = async () => paintStats(await window.win.toggleStats());
   window.win.getStats().then(paintStats);
+  const ovl = document.getElementById('ovl');
+  const paintOvl = (on) => { ovl.classList.toggle('off', !on); ovl.textContent = on ? '🃏 Cards: ON' : '🃏 Cards: OFF'; };
+  ovl.onclick = async () => paintOvl(await window.win.toggleOverlay());
+  window.win.getOverlay().then(paintOvl);
   document.getElementById('min').onclick = () => window.win.minimize();
   document.getElementById('max').onclick = () => window.win.maximize();
   document.getElementById('close').onclick = () => window.win.close();

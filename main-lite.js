@@ -126,6 +126,7 @@ function openAccount (num) {
   wc.on('focus', () => { if (focusNum !== num) { focusNum = num; layout(); } });
   wc.setWindowOpenHandler(({ url }) => ({ action: 'allow', overrideBrowserWindowOptions: { width: 520, height: 680 } }));
   wc.on('dom-ready', () => { slot._tk = null; layout(); applyFps(wc); });
+  if (overlayOn) abreOverlay(slot);
   const onNav = (_e, url) => { slot.connected = /\/play|\/game/.test(url) && !/\/login|\/register/.test(url); emitState(); };
   wc.on('did-navigate', onNav);
   wc.on('did-navigate-in-page', onNav);
@@ -136,8 +137,31 @@ function openAccount (num) {
   win.contentView.addChildView(view);
   return slot;
 }
+// ---- OVERLAY por conta: o card flutua SOBRE a tela daquela conta ----
+// Uma WebContentsView transparente por slot, encostada no canto de cima da tela dela.
+// Fica pequena de proposito: a area do card nao recebe clique do jogo.
+const OV_W = 268, OV_H = 196;
+let overlayOn = true;
+function abreOverlay (s) {
+  if (s.ov) return s.ov;
+  const v = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'host-preload.js'), contextIsolation: true, transparent: true } });
+  try { v.setBackgroundColor('#00000000'); } catch {}
+  v.webContents.loadFile(path.join(__dirname, 'renderer', 'overlay.html'), { query: { num: String(s.num) } });
+  attachShortcuts(v.webContents);
+  win.contentView.addChildView(v);       // entra depois dos jogos = fica por cima
+  s.ov = v;
+  return v;
+}
+function fechaOverlay (s) {
+  if (!s.ov) return;
+  try { win.contentView.removeChildView(s.ov); } catch {}
+  try { s.ov.webContents.close(); } catch {}
+  s.ov = null;
+}
+
 function closeSlot (i) {
   const s = slots[i]; if (!s) return;
+  fechaOverlay(s);
   try { win.contentView.removeChildView(s.view); } catch {}
   try { s.view.webContents.close(); } catch {}
   if (s.num === focusNum) focusNum = 0;   // sem dono do foco: as restantes voltam ao teto
@@ -175,13 +199,20 @@ function layout () {
   const vis = (solo >= 0 && slots[solo]) ? [slots[solo]] : slots;
   const visSet = new Set(vis);
   if (statsMode) {
-    slots.forEach(s => s.view.setBounds(HIDDEN));           // jogos ao fundo
+    slots.forEach(s => { s.view.setBounds(HIDDEN); if (s.ov) s.ov.setBounds(HIDDEN); });   // jogos ao fundo
     if (statsView) statsView.setBounds({ x: gx, y: topY, width: gw, height: areaH });
   } else {
     if (statsView) statsView.setBounds(HIDDEN);
     const rects = tiler(gx, topY, gw, areaH, vis.length, mode);
     slots.forEach(s => s.view.setBounds(HIDDEN));
     vis.forEach((s, k) => s.view.setBounds(rects[k]));
+    // o overlay acompanha o canto de cima da tela da conta
+    slots.forEach(s => { if (!s.ov) return;
+      const k = vis.indexOf(s);
+      if (k < 0 || !overlayOn) return s.ov.setBounds(HIDDEN);
+      const r = rects[k];
+      s.ov.setBounds({ x: r.x, y: r.y, width: Math.min(OV_W, r.width), height: Math.min(OV_H, r.height) });
+    });
   }
   // fps por tela (so re-injeta quando o valor muda) — ver a tabela FPS la em cima
   slots.forEach(s => {
@@ -292,6 +323,13 @@ ipcMain.handle('lite:fps', () => { fpsOn = !fpsOn; slots.forEach(s => applyFps(s
 ipcMain.handle('lite:fps-state', () => fpsOn);
 ipcMain.handle('lite:stats', () => { statsMode = !statsMode; if (statsMode) ensureStats(); layout(); syncStats(); return statsMode; });
 ipcMain.handle('lite:stats-state', () => statsMode);
+ipcMain.handle('lite:overlay', () => {
+  overlayOn = !overlayOn;
+  slots.forEach(s => overlayOn ? abreOverlay(s) : fechaOverlay(s));
+  layout();
+  return overlayOn;
+});
+ipcMain.handle('lite:overlay-state', () => overlayOn);
 
 // ---------------- window.ml (contrato da sidebar original) ----------------
 ipcMain.handle('get-state', () => stateObj());
