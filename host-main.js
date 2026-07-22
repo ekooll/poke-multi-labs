@@ -551,9 +551,10 @@ ipcMain.handle('open-dashboard', () => {
   if (dashWin && !dashWin.isDestroyed()) { dashWin.show(); dashWin.focus(); return true }
   const b = win ? win.getBounds() : { x: 200, y: 120, width: 1200 }
   dashWin = new BrowserWindow({
-    width: 440, height: 660, x: b.x + b.width - 480, y: b.y + 60,
-    minWidth: 320, minHeight: 300,
-    frame: false, resizable: true, alwaysOnTop: false, skipTaskbar: false,
+    width: 470, height: 740, x: b.x + b.width - 510, y: b.y + 50,
+    minWidth: 360, minHeight: 320,
+    parent: win || null,          // filha do app: no alt+tab vai junto, sem entrada propria
+    frame: false, resizable: true, alwaysOnTop: false, skipTaskbar: true,
     backgroundColor: '#0a0605', title: 'Vperts — Dashboard',
     webPreferences: { preload: path.join(__dirname, 'host-preload.js'), contextIsolation: true, nodeIntegration: false }
   })

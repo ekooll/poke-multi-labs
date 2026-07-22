@@ -18,9 +18,14 @@ module.exports = {
   // escondidas/ocluidas (idle game precisa progredir mesmo sem foco).
   CHROME_FLAGS: [
     '--no-first-run', '--no-default-browser-check',
-    '--disable-background-networking', '--disable-sync', '--disable-extensions',
+    '--disable-background-networking', '--disable-sync',
+    // carrega a mini-extensao "Vperts Bridge" (captura o WS -> localStorage.__vperts)
+    '--load-extension=C:/dev/pokemon/labs/vperts-ext',
     '--disable-component-update', '--disable-default-apps', '--disable-breakpad',
-    '--disable-features=Translate,ChromeWhatsNewUI,MediaRouter,OptimizationHints,InterestFeedContentSuggestions',
+    // CalculateNativeWinOcclusion: impede o Chromium de marcar a janela-filha
+    // reparented como OCCLUDED/HIDDEN quando o host perde o foco (alt-tab). Sem
+    // isso, o jogo dispara visibilitychange e trava a UI = "inclicavel ao voltar".
+    '--disable-features=Translate,ChromeWhatsNewUI,MediaRouter,OptimizationHints,InterestFeedContentSuggestions,CalculateNativeWinOcclusion',
     '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows',
     '--disable-background-timer-throttling',
     // enxuga mais: sem audio (4x a mesma musica), sem logging/crash-monitor/telemetria

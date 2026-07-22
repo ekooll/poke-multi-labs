@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Vperts Bridge",
+  "version": "1.0",
+  "description": "Ponte do dashboard Vperts: le o WebSocket do jogo e salva em localStorage.__vperts (leitura, so das contas do proprio jogador).",
+  "content_scripts": [
+    {
+      "matches": ["https://poke.idleworld.online/*"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}
