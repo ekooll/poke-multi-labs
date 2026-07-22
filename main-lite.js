@@ -8,8 +8,9 @@
 //   - bridge automatico: vperts-ext/content.js como PRELOAD (wrap do WS)
 // NAO toca no host-main.js (app pago). Rodar: npx electron main-lite.js
 // ============================================================
-const { app, BaseWindow, WebContentsView, BrowserWindow, session, Menu, ipcMain } = require('electron');
+const { app, BaseWindow, WebContentsView, BrowserWindow, session, Menu, ipcMain, safeStorage } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const cdp = require('./cdp.js');
 process.on('uncaughtException', (e) => console.error('[lite] FATAL', e && e.stack || e));
 // pasta de dados propria (isola cache/login; evita colisao com outros Electron)
@@ -28,7 +29,9 @@ const B = 2;                    // borda vermelha (px)
 const TITLE_H = 32;
 const SIDE_FULL = 206, SIDE_RAIL = 56;
 const BORDER_COLOR = '#8e1d19'; // --red-deep do site
-const EMAIL = 'ekoo.games@gmail.com';
+// a versao leve nao tem login (os handlers de auth sao stub) — nao cravar e-mail de
+// ninguem aqui: o zip de teste ia pra outra pessoa mostrando a conta do dono na sidebar
+const EMAIL = null;
 
 let win = null, titlebar = null, sidebar = null, statsView = null, dash = null;
 const slots = [];               // { num, view, connected }
@@ -38,14 +41,23 @@ let statsMode = false;          // modo stats: jogos ao fundo (1fps) + grid de s
 let mode = 'grid';              // 'grid' | 'rows' | 'columns'
 let solo = -1;                  // -1 = todas; senao indice do slot
 let sideW = SIDE_FULL;          // largura da sidebar (rail quando recolhida)
+let focusNum = 0;               // conta com foco (0 = nenhuma ainda -> todas contam como focada)
 
 const range = (n) => Array.from({ length: n }, (_, i) => i);
 const HIDDEN = { x: 0, y: 0, width: 0, height: 0 };
 
-// ---- Throttle de fps por tela (o cap REAL e instalado no preload content.js) ----
-// visivel + eco = 15fps · visivel sem eco = full(0) · ESCONDIDA (fora de foco) = BG_FPS
-const BG_FPS = 3;               // telas fora de foco caem pra ~3fps -> a focada fica suave
-const setCap = (wc, fps) => wc.executeJavaScript('window.__vpFpsCap=' + (fps || 0)).catch(() => {});
+// ---- Orcamento de fps por tela (o cap REAL e instalado no preload content.js) ----
+// A tela em FOCO leva o orcamento cheio e as outras cedem. E isso que da a sensacao de
+// fluidez sem gastar mais CPU: antes TODAS ficavam em 15fps e o app inteiro parecia duro.
+const FPS = {
+  focus:   { eco: 30, full: 0 },   // conta em que o usuario esta mexendo (0 = sem cap)
+  visible: { eco: 15, full: 30 },  // demais telas da grade — 15 alinhado ao vsync ja e suave
+  hidden:  3,                      // fora da grade (modo solo) — so mantendo o tick
+  stats:   1,                      // modo Estatisticas: jogos so segurando a sessao
+};
+// __vpKick migra os frames pendentes quando o cap cai (tela que sumiu) — ver content.js
+const setCap = (wc, fps) => wc.executeJavaScript(
+  'window.__vpFpsCap=' + (fps || 0) + ';window.__vpKick&&window.__vpKick()').catch(() => {});
 
 // atalhos de teclado (valem com qualquer tela em foco): Ctrl+1..4 foca a conta · Ctrl+0/G = grade
 function attachShortcuts (wc) {
@@ -69,6 +81,36 @@ const applyFps = (wc) => { wc.executeJavaScript(fpsOn ? FPS_ON : FPS_OFF).catch(
 
 function nextFreeNum () { for (let n = 1; n <= MAX; n++) if (!slots.some(s => s.num === n)) return n; return null; }
 
+// ---- SESSAO POR CONTA (abrir ja logado) ----
+// O token do jogo vive no sessionStorage, que nao sobrevive a fechar o app. Guardamos aqui,
+// um por conta, CRIPTOGRAFADO pela DPAPI do Windows (safeStorage): so a conta de Windows
+// que gravou consegue ler, e nada sai da maquina. Sem criptografia disponivel, NAO grava —
+// token em texto puro no disco nao vale a conveniencia.
+const SESS_FILE = path.join(app.getPath('userData'), 'sessions.dat');
+let sessions = {};
+function loadSessions () {
+  try {
+    if (!safeStorage.isEncryptionAvailable()) return;
+    sessions = JSON.parse(safeStorage.decryptString(fs.readFileSync(SESS_FILE))) || {};
+    const n = Object.keys(sessions).length;
+    if (n) console.log('[lite] sessao restaurada de', n, 'conta(s)');
+  } catch { sessions = {}; }        // arquivo ausente/ilegivel: comeca do zero, cai no login
+}
+function saveSessions () {
+  try {
+    if (!safeStorage.isEncryptionAvailable()) return;
+    fs.writeFileSync(SESS_FILE, safeStorage.encryptString(JSON.stringify(sessions)));
+  } catch (e) { console.error('[lite] nao consegui gravar a sessao:', e && e.message); }
+}
+const slotDe = (wc) => slots.find(s => s.view.webContents === wc) || null;
+// sendSync: o preload PRECISA do token antes dos scripts do jogo rodarem
+ipcMain.on('vperts:token-get', (e) => { const s = slotDe(e.sender); e.returnValue = (s && sessions[s.num]) || null; });
+ipcMain.on('vperts:token-set', (e, tok) => {
+  const s = slotDe(e.sender); if (!s) return;                 // popup do Google, por exemplo
+  if (tok) sessions[s.num] = tok; else delete sessions[s.num];  // sem token = deslogou
+  saveSessions();
+});
+
 function openAccount (num) {
   const partition = `persist:vperts-conta${num}`;
   session.fromPartition(partition).setUserAgent(CHROME_UA);
@@ -80,12 +122,16 @@ function openAccount (num) {
   wc.setUserAgent(CHROME_UA);
   wc.setAudioMuted(true);        // 4 jogos tocando som = peso inutil -> muta tudo
   attachShortcuts(wc);           // Ctrl+1..4 / Ctrl+0 mesmo com o jogo em foco
+  // clicou na tela = ela vira a "principal" e recebe o orcamento de fps cheio
+  wc.on('focus', () => { if (focusNum !== num) { focusNum = num; layout(); } });
   wc.setWindowOpenHandler(({ url }) => ({ action: 'allow', overrideBrowserWindowOptions: { width: 520, height: 680 } }));
   wc.on('dom-ready', () => { slot._tk = null; layout(); applyFps(wc); });
   const onNav = (_e, url) => { slot.connected = /\/play|\/game/.test(url) && !/\/login|\/register/.test(url); emitState(); };
   wc.on('did-navigate', onNav);
   wc.on('did-navigate-in-page', onNav);
-  wc.loadURL(LOGIN);
+  // com sessao guardada vai direto pro jogo; se o token tiver expirado o proprio jogo
+  // manda de volta pro /login
+  wc.loadURL(sessions[num] ? GAME + '/play' : LOGIN);
   slots.push(slot);
   win.contentView.addChildView(view);
   return slot;
@@ -94,6 +140,7 @@ function closeSlot (i) {
   const s = slots[i]; if (!s) return;
   try { win.contentView.removeChildView(s.view); } catch {}
   try { s.view.webContents.close(); } catch {}
+  if (s.num === focusNum) focusNum = 0;   // sem dono do foco: as restantes voltam ao teto
   slots.splice(i, 1);
   if (solo >= slots.length) solo = -1;
 }
@@ -136,12 +183,23 @@ function layout () {
     slots.forEach(s => s.view.setBounds(HIDDEN));
     vis.forEach((s, k) => s.view.setBounds(rects[k]));
   }
-  // fps por tela: stats=1fps · escondida=BG_FPS · visivel+eco=15 · visivel=full (so re-injeta quando muda)
+  // fps por tela (so re-injeta quando o valor muda) — ver a tabela FPS la em cima
   slots.forEach(s => {
-    const key = statsMode ? 'stats' : (!visSet.has(s) ? 'bg' : (ecoOn ? 'eco' : 'full'));
-    if (s._tk !== key) { s._tk = key; setCap(s.view.webContents, key === 'stats' ? 1 : key === 'bg' ? BG_FPS : key === 'eco' ? 15 : 0); }
+    let cap;
+    if (statsMode) cap = FPS.stats;
+    else if (!visSet.has(s)) cap = FPS.hidden;
+    else {
+      // sozinha na tela ou ainda sem foco definido = trata como focada (nunca fica pior)
+      const t = (vis.length === 1 || !focusNum || s.num === focusNum) ? FPS.focus : FPS.visible;
+      cap = ecoOn ? t.eco : t.full;
+    }
+    if (s._tk !== cap) { s._tk = cap; setCap(s.view.webContents, cap); }
   });
 }
+
+// resize dispara dezenas de eventos por segundo; recalcular tudo em cada um trava o arrasto
+let relayoutT = null;
+function relayout () { if (relayoutT) return; relayoutT = setTimeout(() => { relayoutT = null; layout(); }, 16); }
 
 function stateObj () {
   return {
@@ -163,11 +221,25 @@ function buildChrome () {
   sidebar.webContents.on('did-finish-load', emitState);
   win.contentView.addChildView(sidebar);
   attachShortcuts(sidebar.webContents);
+}
 
+// A tela de Estatisticas nasce SO quando o modo e ligado. Antes ela era criada no boot e,
+// mesmo invisivel, ficava varrendo as 4 contas de 2,5 em 2,5s — um renderer a mais na RAM
+// e uma engasgada periodica em quem nunca abriu o modo.
+function ensureStats () {
+  if (statsView) return statsView;
   statsView = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'host-preload.js'), contextIsolation: true } });
   statsView.webContents.loadFile(path.join(__dirname, 'renderer', 'stats-grid.html'));
+  statsView.webContents.on('did-finish-load', syncStats);
   win.contentView.addChildView(statsView);
   attachShortcuts(statsView.webContents);
+  return statsView;
+}
+// so pesquisa as contas enquanto o modo esta ligado (o HTML checa window.__vpActive)
+function syncStats () {
+  if (!statsView || statsView.webContents.isDestroyed()) return;
+  statsView.webContents.executeJavaScript(
+    'window.__vpActive=' + statsMode + ';window.__vpActive&&window.__refresh&&window.__refresh()').catch(() => {});
 }
 
 function openDashboard () {
@@ -181,15 +253,33 @@ function openDashboard () {
   dash.on('closed', () => { dash = null; });
 }
 
+// Flags do Chromium (equivalem as CHROME_FLAGS que o app pago passa pro Chrome real):
+// o jogo e idle, entao NADA pode ser jogado pra segundo plano so porque a janela perdeu o
+// foco ou ficou coberta — sem isso o Chromium throttla timers/render e o jogo "engasga".
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+app.commandLine.appendSwitch('enable-gpu-rasterization');   // canvas do jogo vai pra GPU
+app.commandLine.appendSwitch('enable-zero-copy');
+
+// Uma instancia so. Duas apontando pro mesmo userData brigam pelo cache e pelos cookies
+// ("Unable to move the cache: Acesso negado") e podem derrubar o login das contas.
+const SOZINHO = app.requestSingleInstanceLock();
+if (!SOZINHO) app.quit();
+else app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+
 app.whenReady().then(() => {
+  if (!SOZINHO) return;
   Menu.setApplicationMenu(null);
+  loadSessions();               // antes de abrir as contas: decide /play vs /login
   win = new BaseWindow({ width: 1720, height: 1000, minWidth: 940, minHeight: 620,
     frame: false, backgroundColor: BORDER_COLOR, title: 'Vperts Multi' });
   buildChrome();
   for (let k = 0; k < START; k++) openAccount(nextFreeNum());
   layout();
   console.log('[lite] pronto —', slots.length, 'contas abertas');
-  win.on('resize', layout); win.on('maximize', layout); win.on('unmaximize', layout);
+  win.on('resize', relayout); win.on('maximize', relayout); win.on('unmaximize', relayout);
 });
 
 // ---------------- titlebar (controles de janela + eco) ----------------
@@ -200,7 +290,7 @@ ipcMain.handle('lite:eco', () => { ecoOn = !ecoOn; slots.forEach(s => { s._tk = 
 ipcMain.handle('lite:eco-state', () => ecoOn);
 ipcMain.handle('lite:fps', () => { fpsOn = !fpsOn; slots.forEach(s => applyFps(s.view.webContents)); return fpsOn; });
 ipcMain.handle('lite:fps-state', () => fpsOn);
-ipcMain.handle('lite:stats', () => { statsMode = !statsMode; layout(); if (statsMode && statsView) statsView.webContents.executeJavaScript('window.__refresh&&window.__refresh()').catch(() => {}); return statsMode; });
+ipcMain.handle('lite:stats', () => { statsMode = !statsMode; if (statsMode) ensureStats(); layout(); syncStats(); return statsMode; });
 ipcMain.handle('lite:stats-state', () => statsMode);
 
 // ---------------- window.ml (contrato da sidebar original) ----------------

@@ -66,9 +66,12 @@
   const BALL_ICON={poke:'https://poke.idleworld.online/assets/markitems/pokeball.png',great:'https://poke.idleworld.online/assets/markitems/greatball.png',super:'https://poke.idleworld.online/assets/markitems/superball.png',ultra:'https://poke.idleworld.online/assets/markitems/ultraball.png',idle:'https://poke.idleworld.online/assets/markitems/idleball.png'}
   const BALL_LABELS={poke:'Poké',great:'Great',super:'Super',ultra:'Ultra',idle:'Idle',master:'Master'}
   function qtier(q){if(q==null)return'';if(q<1)return'Fraca';if(q<1.1)return'Comum';if(q<1.3)return'Incomum';if(q<1.5)return'Rara';if(q<1.7)return'Épica';if(q<2)return'Lendária';if(q<3)return'Mítica';if(q<4)return'Anciã';return'Divina'}
+  // mesmo limite que o usuário ajusta no rodapé do dashboard (antes era 500 cravado aqui)
+  const lowBall=()=>parseInt(localStorage.getItem('pml_lowball')||'500')||500
   function alertOf(st){
     if(!st||st.ok===false)return{cls:'down',badge:'b-down',txt:'🔴 Off'}
-    if(st.balls&&Object.keys(st.balls).length){ if(st.ballsTotal===0)return{cls:'down',badge:'b-down',txt:'⚠️ Sem bolas'}; if(st.ballsTotal<500)return{cls:'warn',badge:'b-warn',txt:'🟡 Bolas'} }
+    if(st.live&&st.live.offline)return{cls:'down',badge:'b-down',txt:'🔴 Caiu'}
+    if(st.balls&&Object.keys(st.balls).length){ if(st.ballsTotal===0)return{cls:'down',badge:'b-down',txt:'⚠️ Sem bolas'}; if(st.ballsTotal<lowBall())return{cls:'warn',badge:'b-warn',txt:'🟡 Bolas'} }
     if(!st.hunt||!st.hunt.seen)return{cls:'warn',badge:'b-warn',txt:'⚠️ Fora'}
     return{cls:'',badge:'b-ok',txt:'🟢 Hunt'}
   }
@@ -83,11 +86,21 @@
       h+='<div class="hpbar"><div class="hpfill" style="width:'+p+'%"></div></div>'
       let hl='HP '+fmt(st.hp)+' / '+fmt(st.hpMax); if(st.hunt&&st.hunt.timer)hl+='   ⏱ '+st.hunt.timer; if(st.hunt&&st.hunt.wild!=null)hl+='   '+st.hunt.wild+' selvagem'
       h+='<div class="sub">'+hl+'</div>'}
-    const balls=st.balls||{}; let pills=''
-    BALL_ORDER.forEach(k=>{ if(balls[k]!=null)pills+='<span class="pill'+(balls[k]===0?' zero':'')+'" title="'+BALL_LABELS[k]+'">'+ballIcon(k)+'<b>'+fmt(balls[k])+'</b></span>' })
-    if(st.potions!=null)pills+='<span class="pill"><i>Potions</i><b>'+fmt(st.potions)+'</b></span>'
-    if(st.shinies!=null)pills+='<span class="pill" style="border-color:rgba(229,179,79,.55);color:var(--gold)"><i>✨ Shiny</i><b>'+fmt(st.shinies)+'</b></span>'
-    if(st.brokenShiny!=null)pills+='<span class="pill" style="border-color:rgba(226,75,53,.5);color:#ff9d8d"><i>💔 Quebrada</i><b>'+fmt(st.brokenShiny)+'</b></span>'
+    // lista vem do catálogo do jogo (id/nome/ícone); o mapa local é só fallback visual
+    let pills=''
+    const ballPill=(key,name,qty,icon)=>{
+      const img=BALL_ICON[key]?ballIcon(key):(icon?'<span class="ballimg" style="background-image:url('+esc(icon)+');background-size:contain"></span>':'<i>'+esc(name)+'</i>')
+      return '<span class="pill'+(qty===0?' zero':'')+'" title="'+esc(name)+'">'+img+'<b>'+fmt(qty)+'</b></span>'
+    }
+    if(Array.isArray(st.ballList)&&st.ballList.length) st.ballList.forEach(b=>{ pills+=ballPill(b.key,b.name,b.qty,b.icon) })
+    else { const balls=st.balls||{}; BALL_ORDER.forEach(k=>{ if(balls[k]!=null)pills+=ballPill(k,BALL_LABELS[k]||k,balls[k],null) }) }
+    // estoque da mochila (o antigo vinha do "Supply" do analyzer = potions GASTAS)
+    if(st.potions!=null)pills+='<span class="pill" title="estoque na mochila"><i>💊 Potions</i><b>'+fmt(st.potions)+'</b></span>'
+    if(st.revives!=null)pills+='<span class="pill" title="estoque na mochila"><i>✨ Revives</i><b>'+fmt(st.revives)+'</b></span>'
+    // 📸 = shiny que apareceu na hunt (Rare Pokémon Picture) · ✨ = virou seu · 💔 = escapou
+    if(st.photos!=null)pills+='<span class="pill" style="border-color:rgba(229,179,79,.55);color:var(--gold)"><i>📸 Shiny achado</i><b>'+fmt(st.photos)+'</b></span>'
+    if(st.live&&st.live.shiniesCaught!=null)pills+='<span class="pill" style="border-color:rgba(79,196,122,.5);color:var(--good)"><i>✨ Capturado</i><b>'+fmt(st.live.shiniesCaught)+'</b></span>'
+    if(st.live&&st.live.shinyWild!=null)pills+='<span class="pill" style="border-color:rgba(226,75,53,.5);color:#ff9d8d"><i>💔 Escapou</i><b>'+fmt(st.live.shinyWild)+'</b></span>'
     if(pills)h+='<div class="pills">'+pills+'</div>'
     const L=st.live
     if(L&&(L.kills!=null||L.caught!=null)){
@@ -109,20 +122,26 @@
       const r=await window.ml.readDashboard()
       const grid=$('#grid')
       if(!r||!r.results||!r.results.length){ grid.innerHTML='<div class="empty">Nenhuma conta aberta.</div>'; $('#sum').innerHTML=''; return }
-      let inHunt=0,alerts=0,kills=0,caught=0,shiny=0,broken=0,balls=0
-      r.results.forEach(row=>{const st=row.state,a=alertOf(st); if(a.badge==='b-ok')inHunt++;else alerts++
-        if(st&&st.live){kills+=st.live.kills||0;caught+=st.live.caught||0;shiny+=st.live.shiniesCaught||st.live.shinies||0;broken+=st.live.brokenShiny||0}
+      let inHunt=0,alerts=0,kills=0,caught=0,shiny=0,escapou=0,fotos=0,balls=0
+      r.results.forEach(row=>{const st=row.state,a=alertOf(st),A=st&&st.an; if(a.badge==='b-ok')inHunt++;else alerts++
+        if(st&&st.live){
+          kills+=(A&&A.kills!=null)?A.kills:(st.live.kills||0)     // número oficial do jogo quando houver
+          caught+=(A&&A.caught!=null)?A.caught:(st.live.caught||0)
+          shiny+=st.live.shiniesCaught||0; escapou+=st.live.shinyWild||0}
+        if(st&&st.photos!=null)fotos+=st.photos
         if(st&&st.ballsTotal!=null)balls+=st.ballsTotal})
       $('#sum').innerHTML='<span>Contas <b>'+r.results.length+'</b></span><span class="g">Na hunt <b>'+inHunt+'</b></span><span class="a">Alertas <b>'+alerts+'</b></span>'+
-        '<span>⚔️ <b>'+fmt(kills)+'</b></span><span class="go">🎯 <b>'+fmt(caught)+'</b></span><span class="go">✨ <b>'+fmt(shiny)+'</b></span><span class="a">💔 <b>'+fmt(broken)+'</b></span><span>● <b>'+fmt(balls)+'</b></span>'
+        '<span>⚔️ <b>'+fmt(kills)+'</b></span><span class="go">🎯 <b>'+fmt(caught)+'</b></span><span class="go">📸 <b>'+fmt(fotos)+'</b></span><span class="go">✨ <b>'+fmt(shiny)+'</b></span><span class="a">💔 <b>'+fmt(escapou)+'</b></span><span>● <b>'+fmt(balls)+'</b></span>'
       grid.innerHTML=r.results.map(row=>{const st=row.state,a=alertOf(st)
         return '<div class="card '+a.cls+'"><div class="chead"><span class="cname">'+esc(nameOf(row.num))+'</span><span class="badge '+a.badge+'">'+a.txt+'</span></div>'+body(st)+'</div>'}).join('')
       const d=new Date(); $('#stamp').textContent='atualizado '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0')
     }catch(e){ $('#grid').innerHTML='<div class="empty">Erro: '+esc(e.message)+'</div>' }
   }
   window.__refresh=refresh
-  setInterval(refresh,2500)
-  refresh()
+  // so varre as contas com o modo Estatisticas LIGADO (main-lite seta window.__vpActive).
+  // Antes rodava o tempo todo por tras da grade = engasgada de 2,5 em 2,5s a toa.
+  setInterval(()=>{ if(window.__vpActive) refresh() },2500)
+  if(window.__vpActive) refresh()
 </script>
 </body>
 </html>

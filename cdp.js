@@ -85,7 +85,10 @@ function _stateFn () {
   try {
     const root = document.querySelector('#game-root') || document.body
     const leaves = [...root.querySelectorAll('*')].filter(e => e.children.length === 0)
-    const T = e => ((e.innerText || e.textContent || '').trim())
+    // textContent, NAO innerText: innerText forca um reflow sincrono a cada chamada e essa
+    // varredura roda em milhares de folhas — era isso que dava a engasgada periodica no
+    // jogo enquanto o dashboard estava aberto. Em folha o texto e o mesmo.
+    const T = e => ((e.textContent || '').trim())
     const toInt = s => { const m = String(s).match(/([\d][\d.]*)/); return m ? parseInt(m[1].replace(/\./g, ''), 10) : null }
     const body = (document.body.innerText || '')
 
@@ -161,20 +164,70 @@ function _stateFn () {
     // leitura ao vivo via localStorage.__vperts (populado por userscript/Gabriel).
     // NAO e interceptacao — so leitura de um valor. Traz kills/xp/catches/shiny/ball-quebrada.
     let live = null
-    try { const raw = localStorage.getItem('__vperts'); if (raw) { const w = JSON.parse(raw); live = { kills: w.kills, xp: w.xp, caught: w.caught, brokenBalls: w.brokenBalls, shinies: w.shinies, brokenShiny: w.brokenShiny, shiniesCaught: w.shiniesCaught, lastCatch: w.lastCatch, bestCatch: w.bestCatch, catches: w.catches, rareDrops: w.rareDrops, ballCounts: w.ballCounts, msgs: w.msgs, startTs: w.startTs } } } catch (e) {}
+    try {
+      const raw = localStorage.getItem('__vperts')
+      if (raw) {
+        const w = JSON.parse(raw)
+        live = { kills: w.kills, xp: w.xp, caught: w.caught, brokenBalls: w.brokenBalls, shinies: w.shinies,
+          brokenShiny: w.brokenShiny, shiniesCaught: w.shiniesCaught, shinyWild: w.shinyWild, photos: w.photos,
+          lastCatch: w.lastCatch, bestCatch: w.bestCatch, catches: w.catches, rareDrops: w.rareDrops,
+          potions: w.potions, revives: w.revives, rareItems: w.rareItems,
+          ballCounts: w.ballCounts, ballCatalog: w.ballCatalog, msgs: w.msgs, startTs: w.startTs,
+          lastMsgTs: w.lastMsgTs, lastKillTs: w.lastKillTs, hunt: w.hunt, an: w.an, tot: w.tot, offline: w.offline }
+      }
+    } catch (e) {}
     const shinies = live && live.shinies != null ? live.shinies : null
     const brokenShiny = live && live.brokenShiny != null ? live.brokenShiny : null
 
-    // contagem de bolas do WS (balls.counts, estavel) sobrepoe a leitura do DOM
-    let finalBalls = balls
+    // Bolas: o WS manda `counts` (id -> qtd) E o `catalog` com nome/icone de cada id.
+    // Antes um mapa de ids CHUTADO no codigo decidia o que era cada bola — bola nova ou
+    // id diferente sumia do painel calada. Agora o nome e o icone vem do proprio jogo.
+    let finalBalls = balls, ballList = null
     if (live && live.ballCounts) {
-      const BID = { '1': 'poke', '2': 'great', '3': 'super', '4': 'ultra', '5': 'master', '6': 'idle' }
-      const wb = {}
-      for (const id in live.ballCounts) { const k = BID[id]; if (k && live.ballCounts[id] != null) wb[k] = live.ballCounts[id] }
-      if (Object.keys(wb).length) finalBalls = wb
+      const cat = {}
+      ;(live.ballCatalog || []).forEach(b => { if (b && b.id != null) cat[String(b.id)] = b })
+      const DIA = new RegExp('[' + String.fromCharCode(0x300) + '-' + String.fromCharCode(0x36f) + ']', 'g')
+      const slug = s => String(s || '').normalize('NFD').replace(DIA, '')
+        .toLowerCase().replace(/ball/g, '').replace(/[^a-z0-9]/g, '') || null
+      const wb = {}; ballList = []
+      for (const id in live.ballCounts) {
+        const qty = live.ballCounts[id]; if (qty == null) continue
+        const c = cat[id]
+        const key = (c && slug(c.name)) || ('id' + id)
+        wb[key] = qty
+        ballList.push({ id, key, name: (c && c.name) || ('Bola ' + id), qty, icon: (c && c.iconUrl) || null })
+      }
+      if (ballList.length) { finalBalls = wb; ballList.sort((a, b) => (+a.id) - (+b.id)) }
     }
     const ballsTotal = Object.values(finalBalls).reduce((a, b) => a + (b || 0), 0)
-    return { ok: true, ts: Date.now(), name, level, zone, active, hp, hpMax, hunt: { seen: huntSeen, searching, wild, timer }, balls: finalBalls, ballsTotal, potions, revives, money, shinies, brokenShiny, live, an: hasAn ? an : null }
+
+    // Hunt Analyzer: quando o bridge ja pegou um `analyzer` do WS, esse e o numero OFICIAL
+    // (o mesmo do painel do jogo) e nao exige o painel aberto. So cai no DOM sem ele.
+    let anF = hasAn ? an : null
+    if (live && live.an) {
+      const a = live.an
+      anF = { loot: a.lootGold, kills: a.kills, caught: a.captures, saldo: a.balance,
+        cashH: a.goldPerHour, xpH: a.xpPerHour, killsH: a.killsPerHour, shinyCaptures: a.shinyCaptures,
+        seconds: a.seconds, drops: a.drops || [], fonte: 'ws' }
+    }
+    // Na hunt? o WS sabe de verdade (field-init + kill recente). O DOM so ve o texto
+    // "Procurando... selvagem", que some quando o painel esta fechado -> falso "Fora".
+    let huntF = { seen: huntSeen, searching, wild, timer }
+    if (live && (live.hunt || live.lastKillTs)) {
+      const fresh = live.lastKillTs && (Date.now() - live.lastKillTs) < 120000
+      huntF = { seen: !live.offline && (fresh || huntSeen), searching, wild, timer,
+        slug: live.hunt && live.hunt.slug, fonte: 'ws' }
+    }
+    // potions/revives: ESTOQUE do inventario (WS + catalogo de itens). O numero do DOM vinha
+    // do "Supply (... N potions)" do Hunt Analyzer, que e o CONSUMO da sessao — so serve de
+    // ultimo recurso, e agora vai rotulado como usado.
+    const potionsF = (live && live.potions != null) ? live.potions : null
+    const revivesF = (live && live.revives != null) ? live.revives : null
+    const potionsUsed = (live && live.an && live.an.potionsUsed != null) ? live.an.potionsUsed : potions
+    return { ok: true, ts: Date.now(), name, level, zone, active, hp, hpMax, hunt: huntF,
+      balls: finalBalls, ballList, ballsTotal, potions: potionsF, revives: revivesF, potionsUsed,
+      rareItems: live ? live.rareItems : null, money, shinies, brokenShiny,
+      photos: live ? live.photos : null, live, an: anF }
   } catch (e) { return { ok: false, err: String((e && e.message) || e) } }
 }
 const STATE_EXPR = '(' + _stateFn.toString() + ')()'

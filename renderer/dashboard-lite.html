@@ -142,7 +142,14 @@
   const BALL_ORDER = ['poke','great','super','ultra','idle','master']
   const BALL_ICON = { poke:'https://poke.idleworld.online/assets/markitems/pokeball.png', great:'https://poke.idleworld.online/assets/markitems/greatball.png', super:'https://poke.idleworld.online/assets/markitems/superball.png', ultra:'https://poke.idleworld.online/assets/markitems/ultraball.png', idle:'https://poke.idleworld.online/assets/markitems/idleball.png' }
   const BALL_LABELS = { poke:'Poké', great:'Great', super:'Super', ultra:'Ultra', idle:'Idle', master:'Master' }
+  // faixas conferem com a tabela oficial do jogo (pokepedia /systems/quality)
   function qtier (q){ if(q==null)return ''; if(q<1)return 'Fraca'; if(q<1.1)return 'Comum'; if(q<1.3)return 'Incomum'; if(q<1.5)return 'Rara'; if(q<1.7)return 'Épica'; if(q<2)return 'Lendária'; if(q<3)return 'Mítica'; if(q<4)return 'Anciã'; return 'Divina' }
+  // quality é o MULTIPLICADOR de status do poke — mostrar o número junto do tier
+  const mult = (q)=> q==null ? '' : '×'+Number(q).toFixed(3).replace('.',',')
+  const passaFiltro = (c)=>{ if(capFilter==='all')return true
+    if(capFilter==='shiny')return !!c.shiny
+    return (c.quality||0)>=parseFloat(capFilter) }
+  const capLabel = ()=>{ const s=$('#capfilter'); return s&&s.selectedIndex>=0 ? s.options[s.selectedIndex].text.toLowerCase() : '' }
   const TCOL = { 'Épica':'#b07bd8','Lendária':'#e5b34f','Mítica':'#ff6bd0','Anciã':'#ff8f3d','Divina':'#5fe0e0','Rara':'#5b9be6','Incomum':'#5fd38a','Comum':'#c9c9c9','Fraca':'#8a8f97' }
   let LOW = parseInt(localStorage.getItem('pml_lowball') || '500') || 500
   let capFilter = localStorage.getItem('pml_capfilter') || 'all'   // filtro de qualidade das capturas
@@ -152,6 +159,7 @@
 
   function alertOf (st){
     if(!st || st.ok===false) return { cls:'down', badge:'b-down', txt:'🔴 Off' }
+    if(st.live && st.live.offline) return { cls:'down', badge:'b-down', txt:'🔴 Caiu' }   // session-replaced
     if(st.balls && Object.keys(st.balls).length){
       if(st.ballsTotal===0) return { cls:'down', badge:'b-down', txt:'⚠️ Sem bolas' }
       if(st.ballsTotal<LOW) return { cls:'warn', badge:'b-warn', txt:'🟡 Bolas' }
@@ -161,10 +169,15 @@
   }
 
   function renderGeral (rows){
-    let inHunt=0, alerts=0, kills=0, caught=0, shiny=0, broken=0, balls=0, loot=0, hasLoot=false
-    rows.forEach(r=>{ const st=r.state, a=alertOf(st)
+    let inHunt=0, alerts=0, kills=0, caught=0, shiny=0, escapou=0, fotos=0, balls=0, loot=0, hasLoot=false
+    rows.forEach(r=>{ const st=r.state, a=alertOf(st), A=st&&st.an
       if(a.badge==='b-ok') inHunt++; else alerts++
-      if(st && st.live){ kills+=st.live.kills||0; caught+=st.live.caught||0; shiny+=st.live.shiniesCaught||st.live.shinies||0; broken+=st.live.brokenShiny||0 }
+      if(st && st.live){
+        kills+=(A&&A.kills!=null)?A.kills:(st.live.kills||0)      // oficial do jogo quando houver
+        caught+=(A&&A.caught!=null)?A.caught:(st.live.caught||0)
+        shiny+=st.live.shiniesCaught||0; escapou+=st.live.shinyWild||0
+      }
+      if(st && st.photos!=null) fotos+=st.photos
       if(st && st.ballsTotal!=null) balls+=st.ballsTotal
       if(st && st.an && st.an.loot!=null){ loot+=st.an.loot; hasLoot=true }
     })
@@ -174,8 +187,9 @@
       tile('Na hunt', inHunt, 'good')+
       tile('Alertas', alerts, alerts?'bad':'')+
       tile('Capturas', fmt(caught), 'gold')+
-      tile('✨ Shiny', fmt(shiny), shiny?'gold':'')+
-      tile('💔 Ball shiny', fmt(broken), broken?'bad':'')+
+      tile('📸 Shiny achado', fmt(fotos), fotos?'gold':'')+
+      tile('✨ Capturado', fmt(shiny), shiny?'good':'')+
+      tile('💔 Escapou', fmt(escapou), escapou?'bad':'')+
       tile('⚔️ Kills', fmt(kills))+
       tile('● Bolas', fmt(balls))+
       (hasLoot?tile('💰 Loot', money(loot), 'good'):'')+
@@ -191,48 +205,78 @@
       h+='<div class="hpbar"><div class="hpfill" style="width:'+p+'%"></div></div>'
       let hl='HP '+fmt(st.hp)+' / '+fmt(st.hpMax); if(st.hunt&&st.hunt.timer)hl+='   ⏱ '+st.hunt.timer; if(st.hunt&&st.hunt.wild!=null)hl+='   '+st.hunt.wild+' selvagem'
       h+='<div class="sub">'+hl+'</div>' }
-    // bolas com imagem + potions/revives/shiny/broken
-    const balls=st.balls||{}; let pills=''
-    // sprites: poke/great/super/ultra sao 32x32 com a ball só no centro (15x15) → zoom 213% p/ igualar a idle (que preenche tudo)
-    const ballIcon=(k)=>{ if(!BALL_ICON[k]) return '<i>'+BALL_LABELS[k]+'</i>'; const sz=(k==='idle')?'contain':'213%'; return '<span class="ballimg" style="background-image:url('+BALL_ICON[k]+');background-size:'+sz+'"></span>' }
-    BALL_ORDER.forEach(k=>{ if(balls[k]!=null) pills+='<span class="pill'+(balls[k]===0?' zero':'')+'" title="'+BALL_LABELS[k]+'">'+ballIcon(k)+'<b>'+fmt(balls[k])+'</b></span>' })
-    const opt=(lbl,v,st2)=>{ if(v==null)return ''; return '<span class="pill" '+(st2||'')+'><i>'+lbl+'</i><b>'+fmt(v)+'</b></span>' }
-    pills+=opt('Potions',st.potions)+opt('Revives',st.revives)
-    if(st.shinies!=null) pills+='<span class="pill" style="border-color:rgba(229,179,79,.55);color:var(--gold)"><i>✨ Shiny</i><b>'+fmt(st.shinies)+'</b></span>'
-    if(st.brokenShiny!=null) pills+='<span class="pill" style="border-color:rgba(226,75,53,.5);color:#ff9d8d"><i>💔 Ball quebrada</i><b>'+fmt(st.brokenShiny)+'</b></span>'
-    if(pills) h+='<div class="pills">'+pills+'</div>'
-    const L=st.live
-    if(L && (L.kills!=null || L.caught!=null)){
-      h+='<div class="live"><span>⚔️ <b>'+fmt(L.kills)+'</b> kills</span><span>🎯 <b>'+fmt(L.caught)+'</b> capt.</span><span>❌ <b>'+fmt(L.brokenBalls)+'</b> perdidas</span></div>'
-      const att=(L.caught||0)+(L.brokenBalls||0), rate=att>0?(L.caught/att*100):0
-      const hrs=L.startTs?(Date.now()-L.startTs)/3600000:0, xph=hrs>0.004?Math.round(L.xp/hrs):null
-      const bits=['🎯 taxa <b>'+rate.toFixed(1)+'%</b>','🔴 <b>'+(L.caught>0?(att/L.caught).toFixed(1):att+'+')+'</b> balls/capt.']; if(xph!=null)bits.push('📈 <b>'+fmt(xph)+'</b> xp/h')
-      h+='<div class="intel">'+bits.join('')+'</div>'
+    // Bolas: a lista vem do CATALOGO do jogo (id/nome/ícone) — nada de mapa de ids no código.
+    // O ícone local continua como fallback só porque está calibrado (os sprites markitems são
+    // 32x32 com a bola de 15x15 no centro → zoom 213% p/ igualar a idle, que preenche tudo).
+    let pills=''
+    const ballPill=(key,name,qty,icon)=>{
+      let img
+      if(BALL_ICON[key]) img='<span class="ballimg" style="background-image:url('+BALL_ICON[key]+');background-size:'+(key==='idle'?'contain':'213%')+'"></span>'
+      else if(icon) img='<span class="ballimg" style="background-image:url('+esc(icon)+');background-size:contain"></span>'
+      else img='<i>'+esc(name)+'</i>'
+      return '<span class="pill'+(qty===0?' zero':'')+'" title="'+esc(name)+'">'+img+'<b>'+fmt(qty)+'</b></span>'
     }
-    if(L && L.lastCatch){ const c=L.lastCatch, q=c.quality!=null?Number(c.quality).toFixed(3):'?'
-      h+='<div class="last">🎁 última: '+(c.shiny?'✨ ':'')+esc(c.name||'?')+' · '+qtier(c.quality)+' Q'+q+' · IV '+(c.ivTotal!=null?c.ivTotal:'?')+'</div>' }
+    if(Array.isArray(st.ballList)&&st.ballList.length) st.ballList.forEach(b=>{ pills+=ballPill(b.key,b.name,b.qty,b.icon) })
+    else { const balls=st.balls||{}; BALL_ORDER.forEach(k=>{ if(balls[k]!=null) pills+=ballPill(k,BALL_LABELS[k]||k,balls[k],null) }) }
+    const opt=(lbl,v,st2)=>{ if(v==null)return ''; return '<span class="pill" '+(st2||'')+'><i>'+lbl+'</i><b>'+fmt(v)+'</b></span>' }
+    // ESTOQUE da mochila (soma dos itens de cura do inventário), não o que foi gasto
+    pills+=opt('💊 Potions',st.potions,'title="estoque na mochila"')+opt('✨ Revives',st.revives,'title="estoque na mochila"')
+    if(pills) h+='<div class="pills">'+pills+'</div>'
+    // Shiny: 3 números diferentes que antes viravam um "0" só.
+    //  📸 foto = shiny que APARECEU na hunt (o jogo dá 1 Rare Pokémon Picture por shiny)
+    //  ✨ = virou seu · 💔 = escapou (derrotado) · ● = bolas gastas com shiny na tela
+    const Lv=st.live||{}
+    let sh=''
+    const shPill=(lbl,v,col,bd)=>(v==null?'':'<span class="pill" style="border-color:'+bd+';color:'+col+'"><i>'+lbl+'</i><b>'+fmt(v)+'</b></span>')
+    sh+=shPill('📸 Shiny achado',st.photos,'var(--gold)','rgba(229,179,79,.55)')
+    sh+=shPill('✨ Capturado',Lv.shiniesCaught,'var(--good)','rgba(79,196,122,.5)')
+    sh+=shPill('💔 Escapou',Lv.shinyWild,'#ff9d8d','rgba(226,75,53,.5)')
+    sh+=shPill('● Ball no shiny',st.brokenShiny,'var(--muted)','var(--line)')
+    if(sh) h+='<div class="pills">'+sh+'</div>'
+    const L=st.live, A=st.an
+    if(L && (L.kills!=null || L.caught!=null)){
+      // SESSÃO ATUAL: quando o analyzer do jogo já chegou pelo WS, usamos o número DELE —
+      // é o mesmo do painel Hunt Analyzer. Antes a gente mostrava a contagem desde que a
+      // aba abriu e não batia com a tela (o jogo zera os contadores ao trocar de hunt).
+      const k=(A&&A.kills!=null)?A.kills:L.kills, c=(A&&A.caught!=null)?A.caught:L.caught
+      h+='<div class="live"><span>⚔️ <b>'+fmt(k)+'</b> kills</span><span>🎯 <b>'+fmt(c)+'</b> capt.</span><span>❌ <b>'+fmt(L.brokenBalls)+'</b> perdidas</span></div>'
+      const att=(L.caught||0)+(L.brokenBalls||0), rate=att>0?(L.caught/att*100):0
+      let xph=null, aprox=''
+      if(A&&A.xpH!=null) xph=A.xpH
+      else { const hrs=L.startTs?(Date.now()-L.startTs)/3600000:0; if(hrs>0.004){ xph=Math.round(L.xp/hrs); aprox='~' } }
+      const bits=['🎯 taxa <b>'+rate.toFixed(1)+'%</b>','🔴 <b>'+(L.caught>0?(att/L.caught).toFixed(1):att+'+')+'</b> balls/capt.']
+      if(xph!=null)bits.push('📈 <b>'+aprox+fmt(xph)+'</b> xp/h')
+      h+='<div class="intel">'+bits.join('')+'</div>'
+      if(L.tot&&(L.tot.kills||0)>k) h+='<div class="sub" style="color:var(--faint);font-size:11px">desde que abriu: '+fmt(L.tot.kills)+' kills · '+fmt(L.tot.caught)+' capt. · '+fmt(L.tot.shiniesCaught||0)+' shiny</div>'
+    }
+    // A "última" agora RESPEITA o filtro: com "Lendária ou melhor" selecionado ela mostrava
+    // a última captura de qualquer qualidade (era a lista de baixo que filtrava) e parecia
+    // que o filtro estava furado.
+    const ult = (capFilter==='all') ? (L&&L.lastCatch) : ((L&&L.catches||[]).slice().reverse().find(passaFiltro)||null)
+    if(ult){ h+='<div class="last">🎁 '+(capFilter==='all'?'última':'última '+capLabel())+': '+
+      (ult.shiny?'✨ ':'')+esc(ult.name||'?')+' · '+qtier(ult.quality)+' '+mult(ult.quality)+' · IV '+(ult.ivTotal!=null?ult.ivTotal:'?')+'</div>' }
     if(L && L.rareDrops && L.rareDrops.length) h+='<div class="rare">💎 '+L.rareDrops.map(esc).join('  ·  ')+'</div>'
     if(L && Array.isArray(L.catches) && L.catches.length){
-      let list=L.catches.slice()
-      if(capFilter==='shiny') list=list.filter(c=>c.shiny)
-      else if(capFilter!=='all'){ const mn=parseFloat(capFilter); list=list.filter(c=>(c.quality||0)>=mn) }
-      list=list.slice(-25).reverse()
+      const list=L.catches.filter(passaFiltro).slice(-25).reverse()
       if(list.length) h+='<div class="caps">'+list.map(c=>{ const t=qtier(c.quality), col=TCOL[t]||'var(--muted)'
-        return '<div class="cap'+(c.shiny?' sh':'')+'"><span class="cn">'+esc(c.name||'?')+' <span class="civ">IV '+(c.ivTotal!=null?c.ivTotal:'?')+'</span></span><span class="cq" style="color:'+col+'">'+t+' '+(c.quality!=null?Number(c.quality).toFixed(2):'?')+'</span></div>' }).join('')+'</div>'
+        return '<div class="cap'+(c.shiny?' sh':'')+'"><span class="cn">'+esc(c.name||'?')+' <span class="civ">IV '+(c.ivTotal!=null?c.ivTotal:'?')+'</span></span><span class="cq" style="color:'+col+'">'+t+' '+mult(c.quality)+'</span></div>' }).join('')+'</div>'
       else h+='<div class="sub" style="color:var(--faint);font-style:italic">nenhuma captura nesse filtro</div>'
     }
     if(st.an){ const A=st.an, p=[]
       if(A.loot!=null)p.push('💰 Loot <b>'+money(A.loot)+'</b>'); if(A.cashH!=null)p.push('📈 <b>'+money(A.cashH)+'</b>/h'); if(A.saldo!=null)p.push('Saldo <b>'+money(A.saldo)+'</b>')
+      if(st.potionsUsed!=null)p.push('💊 <b>'+fmt(st.potionsUsed)+'</b> usadas')
       if(p.length) h+='<div class="intel">'+p.join('')+'</div>' }
     return h
   }
 
   function quickLine (st){
     if(!st || st.ok===false) return '<span>—</span>'
-    const L=st.live||{}, parts=[]
-    if(L.kills!=null) parts.push('⚔️ <b>'+fmt(L.kills)+'</b>')
-    if(L.caught!=null) parts.push('🎯 <b>'+fmt(L.caught)+'</b>')
+    const L=st.live||{}, A=st.an, parts=[]
+    const k=(A&&A.kills!=null)?A.kills:L.kills, c=(A&&A.caught!=null)?A.caught:L.caught
+    if(k!=null) parts.push('⚔️ <b>'+fmt(k)+'</b>')
+    if(c!=null) parts.push('🎯 <b>'+fmt(c)+'</b>')
     if(st.ballsTotal!=null) parts.push('● <b>'+fmt(st.ballsTotal)+'</b>')
+    if((st.photos||0)>0) parts.push('📸 <b>'+fmt(st.photos)+'</b>')
     if((L.shiniesCaught||0)>0) parts.push('✨ <b>'+fmt(L.shiniesCaught)+'</b>')
     return parts.join('') || '<span>—</span>'
   }
@@ -259,7 +303,7 @@
   }
 
   async function refresh (){
-    if(busy)return; busy=true
+    if(busy||document.hidden)return; busy=true   // minimizado/coberto nao varre as contas
     try{
       const r=await window.ml.readDashboard()
       if(!r||!r.available){ $('#wrap').innerHTML='<div class="na">Leitor indisponível.</div>'; return }
