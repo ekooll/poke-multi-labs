@@ -266,6 +266,13 @@
           if (m.counts) V.ballCounts = m.counts;
           if (m.catalog) V.ballCatalog = m.catalog;    // id -> nome/icone reais
           break;
+        case 'pokes': {   // time da conta: o LIDER vira a arte do painel (sprite pela dex)
+          const lista = Array.isArray(m.list) ? m.list : [];
+          const lead = lista.find(p => p && p.leader) || lista.find(p => p && p.team) || null;
+          if (lead) V.lider = { name: lead.name, speciesId: lead.speciesId, level: lead.level,
+            shiny: !!lead.shiny, hp: lead.hp, maxHp: lead.maxHp, quality: lead.quality, ivTotal: lead.ivTotal };
+          break;
+        }
         case 'inventory':                              // mochila: base do estoque real
           P.inv = m.items || null;
           loadItems(); bag();

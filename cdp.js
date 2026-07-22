@@ -173,6 +173,7 @@ function _stateFn () {
           lastCatch: w.lastCatch, bestCatch: w.bestCatch, catches: w.catches, rareDrops: w.rareDrops,
           potions: w.potions, revives: w.revives, rareItems: w.rareItems, cura: w.cura, usando: w.usando,
           drops: w.drops, lootGold: w.lootGold, lootItems: w.lootItems, capturesGold: w.capturesGold, ballsUsed: w.ballsUsed,
+          lider: w.lider,
           ballCounts: w.ballCounts, ballCatalog: w.ballCatalog, msgs: w.msgs, startTs: w.startTs,
           lastMsgTs: w.lastMsgTs, lastKillTs: w.lastKillTs, lastFieldTs: w.lastFieldTs,
           hunt: w.hunt, an: w.an, tot: w.tot, offline: w.offline }
@@ -269,6 +270,8 @@ function _stateFn () {
       cura: live ? live.cura : null, usando: live ? live.usando : null,
       rareItems: live ? live.rareItems : null, money, shinies, brokenShiny,
       fin, huntSec, drops: dropsF,
+      // time da conta pelo WS: nome/nivel/HP do lider vem certo (o DOM so via o canvas)
+      lider: live ? live.lider : null,
       photos: live ? live.photos : null, live, an: anF }
   } catch (e) { return { ok: false, err: String((e && e.message) || e) } }
 }
