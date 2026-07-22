@@ -133,22 +133,34 @@
     fetch('/game/items.json').then(r => r.json()).then(j => {
       const arr = Array.isArray(j) ? j : (j.items || Object.values(j));
       const map = Object.create(null);
-      arr.forEach(it => { if (it && it.id != null) map[it.id] = { name: it.name, category: it.category, rare: !!it.rare }; });
+      arr.forEach(it => { if (it && it.id != null) map[it.id] = { name: it.name, category: it.category, rare: !!it.rare, icon: iconUrl(it.icon) }; });
       P.items = map; bag(); flush();
     }).catch(() => { P.loadingItems = false; });   // tenta de novo no proximo inventory
   };
+  // mesma regra do cliente do jogo: absoluta fica, "/..." ganha o origin, nome cru vira /assets/items/
+  const iconUrl = (ic) => !ic ? null
+    : /^https?:\/\//.test(ic) ? ic
+    : ic.charAt(0) === '/' ? location.origin + ic
+    : location.origin + '/assets/items/' + ic;
   // sem catalogo -> null (a UI mostra "—"); melhor vazio do que numero errado
   const bag = () => {
     if (!P.inv || !P.items) return;
-    let heal = 0, rev = 0; const raros = [];
+    let heal = 0, rev = 0; const cura = [], raros = [];
     P.inv.forEach(it => {
       const c = P.items[it.itemId]; const q = it.quantity || 0;
       if (!c || !q) return;
-      if (c.category === 'heal') heal += q;
-      else if (c.category === 'revive') rev += q;
+      if (c.category === 'heal' || c.category === 'revive') {
+        if (c.category === 'heal') heal += q; else rev += q;
+        cura.push({ id: it.itemId, name: c.name, qty: q, icon: c.icon, tipo: c.category });
+      }
       if (c.rare || c.category === 'card' || RARE.test(c.name || '')) raros.push({ name: c.name, qty: q });
     });
+    // QUAL potion o jogo esta gastando: a que DIMINUIU desde a leitura anterior
+    const antes = P.curaAntes;
+    if (antes) cura.forEach(x => { if (antes[x.id] != null && x.qty < antes[x.id]) V.usando = x.name; });
+    P.curaAntes = {}; cura.forEach(x => { P.curaAntes[x.id] = x.qty; });
     V.potions = heal; V.revives = rev;
+    V.cura = cura.sort((a, b) => b.qty - a.qty);        // com nome e icone REAL do jogo
     V.rareItems = raros.sort((a, b) => b.qty - a.qty).slice(0, 12);
   };
   const RARE = /ferom|pheromone|strange|foto|photo|picture/i;

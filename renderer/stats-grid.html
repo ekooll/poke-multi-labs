@@ -97,17 +97,20 @@
     // estoque da mochila (o antigo vinha do "Supply" do analyzer = potions GASTAS)
     if(st.potions!=null)pills+='<span class="pill" title="estoque na mochila"><i>💊 Potions</i><b>'+fmt(st.potions)+'</b></span>'
     if(st.revives!=null)pills+='<span class="pill" title="estoque na mochila"><i>✨ Revives</i><b>'+fmt(st.revives)+'</b></span>'
-    // 📸 = shiny que apareceu na hunt (Rare Pokémon Picture) · ✨ = virou seu · 💔 = escapou
-    if(st.photos!=null)pills+='<span class="pill" style="border-color:rgba(229,179,79,.55);color:var(--gold)"><i>📸 Shiny achado</i><b>'+fmt(st.photos)+'</b></span>'
-    if(st.live&&st.live.shiniesCaught!=null)pills+='<span class="pill" style="border-color:rgba(79,196,122,.5);color:var(--good)"><i>✨ Capturado</i><b>'+fmt(st.live.shiniesCaught)+'</b></span>'
-    if(st.live&&st.live.shinyWild!=null)pills+='<span class="pill" style="border-color:rgba(226,75,53,.5);color:#ff9d8d"><i>💔 Escapou</i><b>'+fmt(st.live.shinyWild)+'</b></span>'
+    // shiny: estrela dourada pro capturado, cinza pro perdido (nada de coracao quebrado)
+    if(st.live&&st.live.shiniesCaught!=null)pills+='<span class="pill" style="border-color:rgba(229,179,79,.55);color:var(--gold)"><i>★ Caught shiny</i><b>'+fmt(st.live.shiniesCaught)+'</b></span>'
+    if(st.brokenShiny!=null)pills+='<span class="pill" style="color:var(--faint)"><i>★ Broken shiny</i><b>'+fmt(st.brokenShiny)+'</b></span>'
     if(pills)h+='<div class="pills">'+pills+'</div>'
-    const L=st.live
+    const L=st.live, A=st.an
     if(L&&(L.kills!=null||L.caught!=null)){
-      h+='<div class="live"><span>⚔️ <b>'+fmt(L.kills)+'</b> kills</span><span>🎯 <b>'+fmt(L.caught)+'</b> capt.</span><span>❌ <b>'+fmt(L.brokenBalls)+'</b> perdidas</span></div>'
+      const k=(A&&A.kills!=null)?A.kills:L.kills, c=(A&&A.caught!=null)?A.caught:L.caught
+      h+='<div class="live"><span>⚔️ <b>'+fmt(k)+'</b> kills</span><span>🎯 <b>'+fmt(c)+'</b> capt.</span><span>❌ <b>'+fmt(L.brokenBalls)+'</b> perdidas</span></div>'
       const att=(L.caught||0)+(L.brokenBalls||0),rate=att>0?(L.caught/att*100):0
-      const hrs=L.startTs?(Date.now()-L.startTs)/3600000:0,xph=hrs>0.004?Math.round(L.xp/hrs):null
-      const bits=['🎯 taxa <b>'+rate.toFixed(1)+'%</b>','🔴 <b>'+(L.caught>0?(att/L.caught).toFixed(1):att+'+')+'</b> balls/capt.']; if(xph!=null)bits.push('📈 <b>'+fmt(xph)+'</b> xp/h')
+      let xph=null,aprox=''
+      if(A&&A.xpH!=null)xph=A.xpH
+      else{const hrs=L.startTs?(Date.now()-L.startTs)/3600000:0; if(hrs>0.004){xph=Math.round(L.xp/hrs);aprox='~'}}
+      // so a taxa em % (o "N balls/capt." saiu — dizia a mesma coisa ao contrario)
+      const bits=['🎯 taxa <b>'+rate.toFixed(2).replace('.',',')+'%</b>']; if(xph!=null)bits.push('📈 <b>'+aprox+fmt(xph)+'</b> xp/h')
       h+='<div class="intel">'+bits.join('')+'</div>'
     }
     if(L&&L.lastCatch){const c=L.lastCatch,q=c.quality!=null?Number(c.quality).toFixed(3):'?'

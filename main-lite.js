@@ -245,7 +245,7 @@ function syncStats () {
 function openDashboard () {
   if (dash && !dash.isDestroyed()) { if (dash.isMinimized()) dash.restore(); dash.show(); dash.focus(); return; }
   dash = new BrowserWindow({
-    width: 490, height: 800, minWidth: 380, minHeight: 340, parent: win, frame: false,
+    width: 560, height: 820, minWidth: 420, minHeight: 340, parent: win, frame: false,
     resizable: true, skipTaskbar: true, backgroundColor: '#0a0605',
     webPreferences: { preload: path.join(__dirname, 'host-preload.js'), contextIsolation: true },
   });

@@ -171,7 +171,7 @@ function _stateFn () {
         live = { kills: w.kills, xp: w.xp, caught: w.caught, brokenBalls: w.brokenBalls, shinies: w.shinies,
           brokenShiny: w.brokenShiny, shiniesCaught: w.shiniesCaught, shinyWild: w.shinyWild, photos: w.photos,
           lastCatch: w.lastCatch, bestCatch: w.bestCatch, catches: w.catches, rareDrops: w.rareDrops,
-          potions: w.potions, revives: w.revives, rareItems: w.rareItems,
+          potions: w.potions, revives: w.revives, rareItems: w.rareItems, cura: w.cura, usando: w.usando,
           ballCounts: w.ballCounts, ballCatalog: w.ballCatalog, msgs: w.msgs, startTs: w.startTs,
           lastMsgTs: w.lastMsgTs, lastKillTs: w.lastKillTs, hunt: w.hunt, an: w.an, tot: w.tot, offline: w.offline }
       }
@@ -226,6 +226,7 @@ function _stateFn () {
     const potionsUsed = (live && live.an && live.an.potionsUsed != null) ? live.an.potionsUsed : potions
     return { ok: true, ts: Date.now(), name, level, zone, active, hp, hpMax, hunt: huntF,
       balls: finalBalls, ballList, ballsTotal, potions: potionsF, revives: revivesF, potionsUsed,
+      cura: live ? live.cura : null, usando: live ? live.usando : null,
       rareItems: live ? live.rareItems : null, money, shinies, brokenShiny,
       photos: live ? live.photos : null, live, an: anF }
   } catch (e) { return { ok: false, err: String((e && e.message) || e) } }
