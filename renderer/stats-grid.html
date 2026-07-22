@@ -122,7 +122,12 @@
     if(!st.hunt||!st.hunt.seen) return { cls:'warn', badge:'b-warn', txt:'Fora' }
     return { cls:'', badge:'b-ok', txt:'Hunt' }
   }
-  const ico = (src)=> src&&/^https?:|^data:/.test(src) ? '<img src="'+esc(src)+'" alt="">' : '<span>'+(src||'')+'</span>'
+  // o catálogo do jogo manda ícone RELATIVO ("/assets/markitems/ultraball.png") — sem
+  // resolver, a URL era impressa como texto por cima do rótulo
+  const GAME = 'https://poke.idleworld.online'
+  const url = (s)=> !s ? null : (/^(https?:|data:)/.test(s) ? s : (s.charAt(0)==='/' ? GAME+s : GAME+'/assets/items/'+s))
+  const ehImg = (s)=> !!s && (/^(https?:|data:)/.test(s) || s.indexOf('/')>=0 || /\.(png|gif|webp|jpe?g)$/i.test(s))
+  const ico = (src)=> ehImg(src) ? '<img src="'+esc(url(src))+'" alt="">' : '<span>'+(src||'')+'</span>'
   const linhaQ = (src,lbl,val,cls)=>'<div class="qrow '+(cls||'')+'"><span class="qi">'+ico(src)+'</span>'+
     '<span class="ql">'+lbl+'</span><span class="qv">'+val+'</span></div>'
 

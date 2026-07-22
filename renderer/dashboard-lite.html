@@ -90,6 +90,30 @@
   .t-mut  .ic{color:var(--faint)}
   .tile.zero .tv{color:var(--bad)}
 
+  /* ---------- DETALHADO = Modelo 1: navegação à esquerda, UMA conta por painel ---------- */
+  .det{display:flex;height:calc(100% - 45px - 37px - 36px - 44px);min-height:0}
+  .nav{width:162px;flex:none;border-right:1px solid var(--line);background:#0d0807;
+    padding:12px 9px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+  .nav::-webkit-scrollbar{width:6px}.nav::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:3px}
+  .navh{font-size:9px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--gold-soft);padding:4px 8px 7px}
+  .navb{display:flex;align-items:center;gap:9px;width:100%;background:transparent;
+    border:1px solid transparent;color:var(--muted);padding:9px 10px;border-radius:11px;
+    cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:700;text-align:left;
+    transition:.16s var(--ease);min-width:0}
+  .navb:hover{color:var(--cream);background:rgba(255,255,255,.04)}
+  .navb.on{color:var(--gold);border-color:var(--line-strong);
+    background:linear-gradient(90deg,rgba(229,179,79,.13),rgba(229,179,79,.02))}
+  .navb i{width:7px;height:7px;border-radius:50%;flex:none;background:var(--good)}
+  .navb i.warn{background:var(--mid)} .navb i.down{background:var(--bad)}
+  .navb span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pane{flex:1;min-width:0;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:11px}
+  .pane::-webkit-scrollbar{width:7px}.pane::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:4px}
+  .paneh{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .paneh h2{font-family:'Cinzel',Georgia,serif;font-weight:800;font-size:21px;color:var(--cream);
+    margin:0;letter-spacing:.04em;line-height:1.15}
+  .paneh p{margin:4px 0 0;font-size:11.5px;color:var(--muted)}
+
   /* ---------- abas ---------- */
   .tabs{display:flex;gap:4px;padding:8px 12px 0;background:#0d0807;border-bottom:1px solid var(--line)}
   .tab{background:transparent;border:1px solid transparent;border-bottom:0;color:var(--faint);cursor:pointer;
@@ -287,7 +311,10 @@
       <option value="4.0">Divina</option>
     </select>
   </div>
-  <div class="wrap" id="wrap" hidden><div class="na">carregando…</div></div>
+  <div class="det" id="wrap" hidden>
+    <nav class="nav" id="nav"></nav>
+    <div class="pane" id="pane"><div class="na">carregando…</div></div>
+  </div>
   <div class="ft">
     <label><input type="checkbox" id="auto" checked /> auto (4s)</label>
     <label>avisar &lt; <input type="number" id="lowball" value="500"> bolas</label>
@@ -308,6 +335,12 @@
   const nameOf = (n) => namesMap()[n] || ('Conta ' + n)
   // ícone local só como fallback calibrado (sprites markitems são 32x32 com a bola de 15x15)
   const BALL_ICON = { poke:'https://poke.idleworld.online/assets/markitems/pokeball.png', great:'https://poke.idleworld.online/assets/markitems/greatball.png', super:'https://poke.idleworld.online/assets/markitems/superball.png', ultra:'https://poke.idleworld.online/assets/markitems/ultraball.png', idle:'https://poke.idleworld.online/assets/markitems/idleball.png' }
+  // o catálogo do jogo manda ícone RELATIVO ("/assets/markitems/ultraball.png"); sem
+  // resolver, a URL era impressa como texto por cima do rótulo
+  const GAME = 'https://poke.idleworld.online'
+  const url = (s)=> !s ? null : (/^(https?:|data:)/.test(s) ? s : (s.charAt(0)==='/' ? GAME+s : GAME+'/assets/items/'+s))
+  const ehImg = (s)=> !!s && (/^(https?:|data:)/.test(s) || s.indexOf('/')>=0 || /\.(png|gif|webp|jpe?g)$/i.test(s))
+  const icoHtml = (s)=> ehImg(s) ? '<img src="'+esc(url(s))+'" alt="">' : '<span>'+(s||'')+'</span>'
   // sprites de reserva (o do jogo entra assim que o inventário chega)
   const BALLBACK = { potion:'https://poke.idleworld.online/assets/markitems/ultra_potion.png',
     revive:'https://poke.idleworld.online/assets/markitems/revive.png' }
@@ -354,7 +387,7 @@
     return H? H+'h '+String(M).padStart(2,'0')+'m' : M+'m' }
   // tile do Modelo 3: ícone quadrado colorido + rótulo em caixa alta + valor grande + sub
   function tile (cls, ico, k, v, sub, extra){
-    const img = /^https?:/.test(ico) ? '<img src="'+esc(ico)+'" alt="">' : (SVG[ico] || ico)
+    const img = SVG[ico] || (ehImg(ico) ? '<img src="'+esc(url(ico))+'" alt="">' : ico)
     return '<div class="tile '+cls+(extra||'')+'"><div class="th"><span class="ic">'+img+'</span>'+
       '<span class="tk">'+k+'</span></div><div class="tv">'+v+'</div>'+
       (sub?'<div class="ts">'+sub+'</div>':'')+'</div>'
@@ -390,8 +423,7 @@
     if(!st || st.ok===false) return '<div class="na">jogo não respondeu (logou?)</div>'
     let h=''
     const L=st.live||{}, A=st.an
-    const info=[]; if(st.level!=null)info.push('Nível '+st.level); if(st.zone)info.push(st.zone); if(st.active)info.push(st.active)
-    if(info.length) h+='<div class="sub">'+esc(info.join('  ·  '))+'</div>'
+    // nível/zona/pokémon agora ficam no cabeçalho do painel (Modelo 1)
 
     // ---- SESSÃO ATUAL: os mesmos números do Hunt Analyzer do jogo ----
     const k=(A&&A.kills!=null)?A.kills:L.kills, c=(A&&A.caught!=null)?A.caught:L.caught
@@ -400,15 +432,19 @@
     if(A&&A.xpH!=null) xph=A.xpH
     else { const hrs=L.startTs?(Date.now()-L.startTs)/3600000:0; if(hrs>0.004){ xph=Math.round(L.xp/hrs); apx='~' } }
     const xp=(A&&A.xp!=null)?A.xp:L.xp
+    // 6 cards no formato do Modelo 1: ícone quadrado colorido + rótulo + valor grande.
+    // Onde existe sprite do jogo (bola, potion) usamos ele em vez de desenho nosso.
+    const bola=(st.ballList&&st.ballList.length&&st.ballList[0].icon)||BALL_ICON.poke
+    const pot=spriteDe(st.cura,'heal')||BALLBACK.potion
     let s=''
-    if(k!=null) s+=stat(curto(k),'derrotados',fmt(k))
-    if(c!=null) s+=stat(fmt(c),'capturados',att?fmt(att)+' tentativas':'')
-    if(taxa!=null) s+=stat(taxa.toFixed(2).replace('.',',')+'%','taxa de captura','')
-    if(xp) s+=stat(curto(xp),'xp ganha',fmt(xp))
-    if(xph!=null) s+=stat(apx+curto(xph),'xp por hora','')
-    if(A&&A.killsH!=null) s+=stat(fmt(A.killsH),'kills por hora','')
+    if(st.fin&&st.fin.loot!=null) s+=tile('t-gold','$','Loot da hunt',money(st.fin.loot),st.fin.cashH!=null?money(st.fin.cashH)+'/h':(st.fin.aprox?'estimado':''))
+    if(xph!=null) s+=tile('t-xp','XP','XP da hunt',apx+curto(xph),xp?fmt(xp)+' na sessão':'por hora')
+    if(taxa!=null) s+=tile('t-good','%','Chance de captura',taxa.toFixed(2).replace('.',',')+'%',fmt(c||0)+' de '+fmt(att)+' tentativas')
+    if(k!=null) s+=tile('t-good','espada','Derrotados',curto(k),(A&&A.killsH!=null)?fmt(A.killsH)+'/h':fmt(k))
+    s+=tile('t-ball',bola,'Balls',curto(st.ballsTotal||0),fmt(st.ballsTotal||0)+' no total')
+    s+=tile('t-gold',pot,'Potions',st.potions!=null?curto(st.potions):'—',st.usando?'usando '+esc(st.usando):(st.revives!=null?fmt(st.revives)+' revives':''))
     if(s) h+='<section class="box"><div class="bh"><span class="bt">Sessão atual</span>'+
-      (st.huntSec?'<span class="bv">'+dur(st.huntSec)+' na hunt</span>':'')+'</div><div class="stats">'+s+'</div></section>'
+      (st.huntSec?'<span class="bv">'+dur(st.huntSec)+' na hunt</span>':'')+'</div><div class="tiles">'+s+'</div></section>'
 
     // ---- SALDO: Loot + Capturas − Supply, como o painel do jogo ----
     const F=st.fin
@@ -451,7 +487,7 @@
     const ballItem=(key,name,qty,icon)=>{
       let img
       if(BALL_ICON[key]) img='<span class="sp" style="background-image:url('+BALL_ICON[key]+');background-size:'+(key==='idle'?'contain':'213%')+'"></span>'
-      else if(icon) img='<img src="'+esc(icon)+'" alt="">'
+      else if(icon) img='<img src="'+esc(url(icon))+'" alt="">'
       else img='<small>'+esc(name)+'</small>'
       return '<span class="item'+(qty===0?' zero':'')+'" title="'+esc(name)+'">'+img+fmt(qty)+'</span>'
     }
@@ -464,7 +500,7 @@
     if(Array.isArray(st.cura)&&st.cura.length){
       const usando=st.usando
       const its=st.cura.map(p=>'<span class="item'+(p.qty===0?' zero':'')+(p.name===usando?' uso':'')+'" title="'+esc(p.name)+(p.name===usando?' — em uso':'')+'">'+
-        (p.icon?'<img src="'+esc(p.icon)+'" alt="">':'')+fmt(p.qty)+'</span>').join('')
+        (p.icon?'<img src="'+esc(url(p.icon))+'" alt="">':'')+fmt(p.qty)+'</span>').join('')
       h+='<div class="sec"><div class="sech">Cura <em>'+
         (usando?'usando '+esc(usando):fmt(st.potions||0)+' potions · '+fmt(st.revives||0)+' revives')+
         (st.potionsUsed!=null?' · '+fmt(st.potionsUsed)+' gastas na sessão':'')+'</em></div>'+
@@ -474,7 +510,7 @@
     // ---- DROPS DA SESSÃO: sprite + nome + ×N + valor, como no painel do jogo ----
     if(Array.isArray(st.drops)&&st.drops.length){
       const li=st.drops.map(d=>'<div class="drop"><span class="dn">'+
-        (d.icon?'<img src="'+esc(d.icon)+'" alt="">':'<i class="ph"></i>')+esc(d.name)+'</span>'+
+        (d.icon?'<img src="'+esc(url(d.icon))+'" alt="">':'<i class="ph"></i>')+esc(d.name)+'</span>'+
         '<span class="dq">×'+fmt(d.qty)+'</span><span class="dg">'+money(d.gold||0)+'</span></div>').join('')
       h+='<section class="box"><div class="bh"><span class="bt">Drops da sessão</span></div><div class="drops">'+li+'</div></section>'
     }
@@ -513,8 +549,7 @@
     if(!Array.isArray(lista))return null
     const c=lista.filter(x=>x.tipo===cat&&x.icon).sort((a,b)=>b.qty-a.qty)[0]
     return c?c.icon:null }
-  const linha = (ico,lbl,val,cls)=>'<div class="row '+(cls||'')+'"><span class="ri">'+
-    (ico&&/^https?:|^data:/.test(ico)?'<img src="'+esc(ico)+'" alt="">':'<span>'+(ico||'')+'</span>')+
+  const linha = (src,lbl,val,cls)=>'<div class="row '+(cls||'')+'"><span class="ri">'+icoHtml(src)+
     '</span><span class="rl">'+lbl+'</span><span class="rv">'+val+'</span></div>'
 
   function cardConta (r){
@@ -593,26 +628,30 @@
       '<stop offset="100%" stop-color="#d98350" stop-opacity=".12"/></linearGradient></defs>'+d
   }
 
+  // DETALHADO no formato do Modelo 1: a navegação da esquerda lista as CONTAS e o painel
+  // da direita mostra UMA conta por vez (um modelo, uma conta).
+  let contaSel = parseInt(localStorage.getItem('pml_conta')||'0') || 0
+  function renderDet (rows){
+    if(!rows.some(r=>r.num===contaSel)) contaSel = rows[0].num
+    $('#nav').innerHTML = '<div class="navh">Contas</div>' + rows.map(r=>{
+      const a=alertOf(r.state)
+      return '<button class="navb'+(r.num===contaSel?' on':'')+'" data-num="'+r.num+'">'+
+        '<i class="'+a.cls+'"></i><span>'+esc(nameOf(r.num))+'</span></button>'
+    }).join('')
+    $('#nav').querySelectorAll('.navb').forEach(b=>b.onclick=()=>{
+      contaSel=+b.dataset.num; localStorage.setItem('pml_conta',contaSel); renderDet(rows) })
+    const r = rows.find(x=>x.num===contaSel) || rows[0]
+    const st = r.state, a = alertOf(st)
+    const sub=[]; if(st&&st.level!=null)sub.push('Nível '+st.level); if(st&&st.zone)sub.push(st.zone); if(st&&st.active)sub.push(st.active)
+    $('#pane').innerHTML =
+      '<div class="paneh"><div><h2>'+esc(nameOf(r.num))+'</h2>'+
+        '<p>'+(sub.length?esc(sub.join('  ·  ')):'acompanhe o progresso na hunt')+'</p></div>'+
+        '<span class="abadge '+a.badge+'">'+a.txt+'</span></div>' + bodyHtml(st)
+  }
+
   function render (rows){
     renderGeralHub(rows)
-    const wrap=$('#wrap')
-    wrap.innerHTML = renderGeral(rows) + rows.map(r=>{
-      const st=r.state, a=alertOf(st), nm=nameOf(r.num), open=openSet.has(r.num)
-      return '<div class="acc '+a.cls+(open?' open':'')+'" data-num="'+r.num+'">'+
-        '<button class="ahead"><span class="chev">▸</span>'+
-          '<span class="aname">'+esc(nm)+'</span>'+
-          '<span class="aquick">'+quickLine(st)+'</span>'+
-          '<span class="abadge '+a.badge+'">'+a.txt+'</span></button>'+
-        '<div class="abody"'+(open?'':' hidden')+'>'+bodyHtml(st)+'</div></div>'
-    }).join('')
-    wrap.querySelectorAll('.acc').forEach(el=>{
-      const num=+el.dataset.num
-      el.querySelector('.ahead').onclick=()=>{ if(openSet.has(num))openSet.delete(num); else openSet.add(num)
-        const op=openSet.has(num); el.classList.toggle('open',op); el.querySelector('.abody').hidden=!op }
-    })
-    const gh=wrap.querySelector('.gthead')
-    if(gh) gh.onclick=()=>{ geralOpen=!geralOpen; localStorage.setItem('pml_geralopen',geralOpen?'1':'0')
-      const g=wrap.querySelector('.geral'); g.classList.toggle('open',geralOpen); g.querySelector('.gbody').hidden=!geralOpen }
+    renderDet(rows)
     // pastilha de status no topo
     const vivas=rows.filter(r=>alertOf(r.state).badge==='b-ok').length
     const stEl=$('#status'); stEl.classList.toggle('off',vivas===0)
