@@ -73,6 +73,12 @@
   .stat{font-size:10.5px;color:var(--muted)}
   .stat b{color:var(--cream);font-weight:700}
   .stat.loot b{color:var(--good)} .stat.saldo b{color:var(--gold)}
+  .c-intel{font-size:10.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 12px;border-top:1px dashed var(--line);padding-top:7px}
+  .c-intel[hidden]{display:none}
+  .c-intel b{color:var(--gold-soft);font-weight:700}
+  .c-last[hidden]{display:none}
+  .c-rare{font-size:11px;font-weight:700;color:#ffe0a0;background:rgba(229,179,79,.12);border:1px solid rgba(229,179,79,.45);border-radius:8px;padding:5px 9px;box-shadow:0 0 10px rgba(229,179,79,.1)}
+  .c-rare[hidden]{display:none}
   .na{color:var(--faint);font-style:italic;font-size:12px;text-align:center;padding:18px}
 
   .ft{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;
@@ -153,6 +159,8 @@
         '<span class="stat loot">🎯 <b class="l-caught"></b> capt.</span>' +
         '<span class="stat">❌ <b class="l-broken"></b> perdidas</span>' +
       '</div>' +
+      '<div class="c-intel" hidden></div>' +
+      '<div class="c-rare" hidden></div>' +
       '<div class="sub c-last" hidden></div>' +
       '<div class="analyzer c-an" hidden></div>'
   }
@@ -224,6 +232,27 @@
       setT(el, '.c-last', '🎁 última: ' + (c.shiny ? '✨ ' : '') + (c.name || '?') + '  ·  Q ' + q + '  ·  IV ' + (c.ivTotal != null ? c.ivTotal : '?'))
       show(el, '.c-last', true)
     } else show(el, '.c-last', false)
+    // inteligência de hunt (calculada do live)
+    if (st.live && st.live.kills != null) {
+      const L = st.live
+      const attempts = (L.caught || 0) + (L.brokenBalls || 0)
+      const rate = attempts > 0 ? (L.caught / attempts * 100) : 0
+      const hrs = L.startTs ? (Date.now() - L.startTs) / 3600000 : 0
+      const xph = hrs > 0.004 ? Math.round(L.xp / hrs) : null
+      const bits = ['🎯 taxa <b>' + rate.toFixed(1) + '%</b>', '🔴 <b>' + (L.caught > 0 ? (attempts / L.caught).toFixed(1) : attempts + '+') + '</b> balls/capt.']
+      if (xph != null) bits.push('📈 <b>' + fmt(xph) + '</b> xp/h')
+      const h = bits.join('')
+      const iel = el.querySelector('.c-intel')
+      if (iel.dataset.h !== h) { iel.dataset.h = h; iel.innerHTML = h }
+      iel.hidden = false
+    } else show(el, '.c-intel', false)
+    // item raro coletado (ex: Feromônio)
+    if (st.live && st.live.rareDrops && st.live.rareDrops.length) {
+      const h = '💎 ' + st.live.rareDrops.map(function (x) { return esc(x) }).join('  ·  ')
+      const rel = el.querySelector('.c-rare')
+      if (rel.dataset.h !== h) { rel.dataset.h = h; rel.innerHTML = h }
+      rel.hidden = false
+    } else show(el, '.c-rare', false)
     let anHtml = ''
     if (st.an) {
       const A = st.an, p = []
