@@ -24,6 +24,10 @@
     color:var(--good);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit}
   .fps.off{border-color:var(--line);color:var(--faint)}
   .fps:hover{filter:brightness(1.1)}
+  .stats{margin-left:6px;-webkit-app-region:no-drag;background:transparent;border:1px solid rgba(229,179,79,.45);
+    color:var(--gold);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit}
+  .stats.off{border-color:var(--line);color:var(--faint)}
+  .stats:hover{filter:brightness(1.1)}
   .spacer{flex:1}
   .ctrls{display:flex;align-items:center;height:100%;-webkit-app-region:no-drag}
   .ctrls button{background:transparent;border:0;color:var(--muted);width:44px;height:100%;font-size:13px;cursor:pointer;font-family:inherit}
@@ -36,6 +40,7 @@
     <span class="brand">Vperts Multi</span>
     <button class="eco" id="eco" title="Cap de 15fps p/ economizar CPU/RAM">🔋 Eco: ON</button>
     <button class="fps off" id="fps" title="Mostrar FPS no canto de cada tela">📈 FPS: OFF</button>
+    <button class="stats off" id="stats" title="Modo estatísticas: jogos ao fundo (1fps) + stats na tela toda">📊 Stats: OFF</button>
     <div class="spacer"></div>
     <div class="ctrls">
       <button id="min" title="Minimizar">—</button>
@@ -52,6 +57,10 @@
   const paintFps = (on) => { fps.classList.toggle('off', !on); fps.textContent = on ? '📈 FPS: ON' : '📈 FPS: OFF'; };
   fps.onclick = async () => paintFps(await window.win.toggleFps());
   window.win.getFps().then(paintFps);
+  const stats = document.getElementById('stats');
+  const paintStats = (on) => { stats.classList.toggle('off', !on); stats.textContent = on ? '📊 Stats: ON' : '📊 Stats: OFF'; };
+  stats.onclick = async () => paintStats(await window.win.toggleStats());
+  window.win.getStats().then(paintStats);
   document.getElementById('min').onclick = () => window.win.minimize();
   document.getElementById('max').onclick = () => window.win.maximize();
   document.getElementById('close').onclick = () => window.win.close();

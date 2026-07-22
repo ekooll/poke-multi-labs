@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Estatísticas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800&family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#0a0605; --line:rgba(216,138,74,.18); --line-strong:rgba(229,179,79,.4);
+    --gold:#e5b34f; --gold-soft:#d98350; --cream:#f7eee7; --muted:#b5a196; --faint:#7d6d64;
+    --good:#4fc47a; --bad:#e24b35; --warn:#e5b34f; }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;color:var(--cream);font-family:Inter,system-ui,sans-serif;
+    background:radial-gradient(120% 90% at 0% 0%,#1b0f0b 0%,#0a0605 62%)}
+  .top{display:flex;align-items:center;gap:14px;padding:9px 14px;border-bottom:1px solid var(--line);
+    background:linear-gradient(90deg,#160c0a,#241110 50%,#160c0a);flex-wrap:wrap}
+  .top .ti{font-family:'Cinzel',serif;font-weight:800;color:var(--gold);font-size:15px}
+  .top .sum{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+  .top .sum b{color:var(--cream);font-weight:800}
+  .top .sum .g{color:var(--good)} .top .sum .a{color:var(--bad)} .top .sum .go{color:var(--gold)}
+  .top .stamp{margin-left:auto;font-size:10px;color:var(--faint)}
+  .grid{height:calc(100% - 43px);overflow:auto;padding:12px;display:grid;gap:12px;align-content:start;
+    grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  .grid::-webkit-scrollbar{width:8px}.grid::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:4px}
+  .card{border:1px solid var(--line-strong);border-radius:15px;padding:14px 15px;display:flex;flex-direction:column;gap:11px;
+    background:linear-gradient(160deg,rgba(34,20,17,.92),rgba(13,8,7,.94));box-shadow:0 6px 18px rgba(0,0,0,.3);min-height:120px}
+  .card.down{border-color:rgba(226,75,53,.6)} .card.warn{border-color:rgba(229,179,79,.5)}
+  .chead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .cname{font-family:'Cinzel',serif;font-weight:800;font-size:19px;color:var(--cream);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .badge{font-size:12px;font-weight:800;padding:5px 12px;border-radius:99px;white-space:nowrap}
+  .b-ok{color:#0c1a10;background:var(--good)} .b-warn{color:#1a1405;background:var(--warn)} .b-down{color:#fff;background:var(--bad)}
+  .sub{font-size:13px;color:var(--muted);line-height:1.5}
+  .hpbar{height:10px;border-radius:5px;background:#0d0807;border:1px solid var(--line);overflow:hidden}
+  .hpfill{height:100%;background:linear-gradient(90deg,#3ae07c,#1fb959)}
+  .pills{display:flex;gap:6px;flex-wrap:wrap}
+  .pill{display:flex;align-items:center;gap:6px;font-size:15px;font-weight:800;color:var(--cream);
+    background:#0d0807;border:1px solid var(--line);border-radius:10px;padding:7px 12px}
+  .pill.zero{border-color:rgba(226,75,53,.5);color:#ff9d8d}
+  .pill i{color:var(--faint);font-style:normal;font-weight:600;font-size:11px}
+  .ballimg{width:22px;height:22px;display:inline-block;flex:none;background-repeat:no-repeat;background-position:center}
+  .live{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:13px;color:var(--muted);border-top:1px dashed var(--line);padding-top:9px}
+  .live b{color:var(--cream);font-weight:800}
+  .intel{font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 14px}
+  .intel b{color:var(--gold-soft);font-weight:800}
+  .last{font-size:13px;font-weight:700;color:var(--cream);background:rgba(91,155,230,.09);border:1px solid rgba(91,155,230,.3);border-radius:9px;padding:7px 11px}
+  .rare{font-size:12px;font-weight:700;color:#ffe0a0;background:rgba(229,179,79,.12);border:1px solid rgba(229,179,79,.42);border-radius:8px;padding:5px 10px}
+  .na{color:var(--faint);font-style:italic;font-size:13px;text-align:center;padding:22px}
+  .empty{grid-column:1/-1;text-align:center;color:var(--faint);padding:40px;font-style:italic}
+</style>
+</head>
+<body>
+  <div class="top">
+    <span class="ti">📊 Estatísticas</span>
+    <div class="sum" id="sum"></div>
+    <span class="stamp" id="stamp"></span>
+  </div>
+  <div class="grid" id="grid"><div class="empty">carregando…</div></div>
+<script>
+  const $ = (s)=>document.querySelector(s)
+  const fmt=(n)=>Number(n||0).toLocaleString('pt-BR')
+  const money=(n)=>(n<0?'-$':'$')+Math.abs(Number(n||0)).toLocaleString('pt-BR')
+  const esc=(s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
+  const namesMap=()=>{try{return JSON.parse(localStorage.getItem('pml_names')||'{}')}catch{return{}}}
+  const nameOf=(n)=>namesMap()[n]||('Conta '+n)
+  const BALL_ORDER=['poke','great','super','ultra','idle','master']
+  const BALL_ICON={poke:'https://poke.idleworld.online/assets/markitems/pokeball.png',great:'https://poke.idleworld.online/assets/markitems/greatball.png',super:'https://poke.idleworld.online/assets/markitems/superball.png',ultra:'https://poke.idleworld.online/assets/markitems/ultraball.png',idle:'https://poke.idleworld.online/assets/markitems/idleball.png'}
+  const BALL_LABELS={poke:'Poké',great:'Great',super:'Super',ultra:'Ultra',idle:'Idle',master:'Master'}
+  function qtier(q){if(q==null)return'';if(q<1)return'Fraca';if(q<1.1)return'Comum';if(q<1.3)return'Incomum';if(q<1.5)return'Rara';if(q<1.7)return'Épica';if(q<2)return'Lendária';if(q<3)return'Mítica';if(q<4)return'Anciã';return'Divina'}
+  function alertOf(st){
+    if(!st||st.ok===false)return{cls:'down',badge:'b-down',txt:'🔴 Off'}
+    if(st.balls&&Object.keys(st.balls).length){ if(st.ballsTotal===0)return{cls:'down',badge:'b-down',txt:'⚠️ Sem bolas'}; if(st.ballsTotal<500)return{cls:'warn',badge:'b-warn',txt:'🟡 Bolas'} }
+    if(!st.hunt||!st.hunt.seen)return{cls:'warn',badge:'b-warn',txt:'⚠️ Fora'}
+    return{cls:'',badge:'b-ok',txt:'🟢 Hunt'}
+  }
+  const ballIcon=(k)=>{ if(!BALL_ICON[k])return'<i>'+BALL_LABELS[k]+'</i>'; const sz=(k==='idle')?'contain':'213%'; return '<span class="ballimg" style="background-image:url('+BALL_ICON[k]+');background-size:'+sz+'"></span>' }
+
+  function body(st){
+    if(!st||st.ok===false)return '<div class="na">jogo não respondeu (logou?)</div>'
+    let h=''
+    const info=[]; if(st.level!=null)info.push('Nível '+st.level); if(st.zone)info.push('📍 '+st.zone); if(st.active)info.push('🐾 '+st.active)
+    if(info.length)h+='<div class="sub">'+esc(info.join('  ·  '))+'</div>'
+    if(st.hp!=null&&st.hpMax){const p=Math.max(0,Math.min(100,st.hp/st.hpMax*100)).toFixed(0)
+      h+='<div class="hpbar"><div class="hpfill" style="width:'+p+'%"></div></div>'
+      let hl='HP '+fmt(st.hp)+' / '+fmt(st.hpMax); if(st.hunt&&st.hunt.timer)hl+='   ⏱ '+st.hunt.timer; if(st.hunt&&st.hunt.wild!=null)hl+='   '+st.hunt.wild+' selvagem'
+      h+='<div class="sub">'+hl+'</div>'}
+    const balls=st.balls||{}; let pills=''
+    BALL_ORDER.forEach(k=>{ if(balls[k]!=null)pills+='<span class="pill'+(balls[k]===0?' zero':'')+'" title="'+BALL_LABELS[k]+'">'+ballIcon(k)+'<b>'+fmt(balls[k])+'</b></span>' })
+    if(st.potions!=null)pills+='<span class="pill"><i>Potions</i><b>'+fmt(st.potions)+'</b></span>'
+    if(st.shinies!=null)pills+='<span class="pill" style="border-color:rgba(229,179,79,.55);color:var(--gold)"><i>✨ Shiny</i><b>'+fmt(st.shinies)+'</b></span>'
+    if(st.brokenShiny!=null)pills+='<span class="pill" style="border-color:rgba(226,75,53,.5);color:#ff9d8d"><i>💔 Quebrada</i><b>'+fmt(st.brokenShiny)+'</b></span>'
+    if(pills)h+='<div class="pills">'+pills+'</div>'
+    const L=st.live
+    if(L&&(L.kills!=null||L.caught!=null)){
+      h+='<div class="live"><span>⚔️ <b>'+fmt(L.kills)+'</b> kills</span><span>🎯 <b>'+fmt(L.caught)+'</b> capt.</span><span>❌ <b>'+fmt(L.brokenBalls)+'</b> perdidas</span></div>'
+      const att=(L.caught||0)+(L.brokenBalls||0),rate=att>0?(L.caught/att*100):0
+      const hrs=L.startTs?(Date.now()-L.startTs)/3600000:0,xph=hrs>0.004?Math.round(L.xp/hrs):null
+      const bits=['🎯 taxa <b>'+rate.toFixed(1)+'%</b>','🔴 <b>'+(L.caught>0?(att/L.caught).toFixed(1):att+'+')+'</b> balls/capt.']; if(xph!=null)bits.push('📈 <b>'+fmt(xph)+'</b> xp/h')
+      h+='<div class="intel">'+bits.join('')+'</div>'
+    }
+    if(L&&L.lastCatch){const c=L.lastCatch,q=c.quality!=null?Number(c.quality).toFixed(3):'?'
+      h+='<div class="last">🎁 última: '+(c.shiny?'✨ ':'')+esc(c.name||'?')+' · '+qtier(c.quality)+' Q'+q+' · IV '+(c.ivTotal!=null?c.ivTotal:'?')+'</div>'}
+    if(L&&L.rareDrops&&L.rareDrops.length)h+='<div class="rare">💎 '+L.rareDrops.map(esc).join('  ·  ')+'</div>'
+    if(st.an){const A=st.an,p=[]; if(A.loot!=null)p.push('💰 Loot <b>'+money(A.loot)+'</b>'); if(A.cashH!=null)p.push('📈 <b>'+money(A.cashH)+'</b>/h'); if(p.length)h+='<div class="intel">'+p.join('')+'</div>'}
+    return h
+  }
+
+  async function refresh(){
+    try{
+      const r=await window.ml.readDashboard()
+      const grid=$('#grid')
+      if(!r||!r.results||!r.results.length){ grid.innerHTML='<div class="empty">Nenhuma conta aberta.</div>'; $('#sum').innerHTML=''; return }
+      let inHunt=0,alerts=0,kills=0,caught=0,shiny=0,broken=0,balls=0
+      r.results.forEach(row=>{const st=row.state,a=alertOf(st); if(a.badge==='b-ok')inHunt++;else alerts++
+        if(st&&st.live){kills+=st.live.kills||0;caught+=st.live.caught||0;shiny+=st.live.shiniesCaught||st.live.shinies||0;broken+=st.live.brokenShiny||0}
+        if(st&&st.ballsTotal!=null)balls+=st.ballsTotal})
+      $('#sum').innerHTML='<span>Contas <b>'+r.results.length+'</b></span><span class="g">Na hunt <b>'+inHunt+'</b></span><span class="a">Alertas <b>'+alerts+'</b></span>'+
+        '<span>⚔️ <b>'+fmt(kills)+'</b></span><span class="go">🎯 <b>'+fmt(caught)+'</b></span><span class="go">✨ <b>'+fmt(shiny)+'</b></span><span class="a">💔 <b>'+fmt(broken)+'</b></span><span>● <b>'+fmt(balls)+'</b></span>'
+      grid.innerHTML=r.results.map(row=>{const st=row.state,a=alertOf(st)
+        return '<div class="card '+a.cls+'"><div class="chead"><span class="cname">'+esc(nameOf(row.num))+'</span><span class="badge '+a.badge+'">'+a.txt+'</span></div>'+body(st)+'</div>'}).join('')
+      const d=new Date(); $('#stamp').textContent='atualizado '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0')
+    }catch(e){ $('#grid').innerHTML='<div class="empty">Erro: '+esc(e.message)+'</div>' }
+  }
+  window.__refresh=refresh
+  setInterval(refresh,2500)
+  refresh()
+</script>
+</body>
+</html>

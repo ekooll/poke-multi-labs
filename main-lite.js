@@ -30,10 +30,11 @@ const SIDE_FULL = 206, SIDE_RAIL = 56;
 const BORDER_COLOR = '#8e1d19'; // --red-deep do site
 const EMAIL = 'ekoo.games@gmail.com';
 
-let win = null, titlebar = null, sidebar = null, dash = null;
+let win = null, titlebar = null, sidebar = null, statsView = null, dash = null;
 const slots = [];               // { num, view, connected }
 let ecoOn = true;
 let fpsOn = false;              // overlay de fps por conta (canto sup. direito)
+let statsMode = false;          // modo stats: jogos ao fundo (1fps) + grid de stats na tela toda
 let mode = 'grid';              // 'grid' | 'rows' | 'columns'
 let solo = -1;                  // -1 = todas; senao indice do slot
 let sideW = SIDE_FULL;          // largura da sidebar (rail quando recolhida)
@@ -45,6 +46,16 @@ const HIDDEN = { x: 0, y: 0, width: 0, height: 0 };
 // visivel + eco = 15fps · visivel sem eco = full(0) · ESCONDIDA (fora de foco) = BG_FPS
 const BG_FPS = 3;               // telas fora de foco caem pra ~3fps -> a focada fica suave
 const setCap = (wc, fps) => wc.executeJavaScript('window.__vpFpsCap=' + (fps || 0)).catch(() => {});
+
+// atalhos de teclado (valem com qualquer tela em foco): Ctrl+1..4 foca a conta · Ctrl+0/G = grade
+function attachShortcuts (wc) {
+  wc.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown' || !(input.control || input.meta)) return;
+    const k = input.key;
+    if (k >= '1' && k <= String(MAX)) { const i = +k - 1; if (slots[i]) { solo = i; layout(); emitState(); event.preventDefault(); } }
+    else if (k === '0' || k === 'g' || k === 'G') { solo = -1; layout(); emitState(); event.preventDefault(); }
+  });
+}
 
 // ---- FPS overlay: contador verde no canto sup. direito de cada conta ----
 const FPS_ON = "(()=>{if(window.__vpfps)return;var b=document.createElement('div');b.id='__vpfps';" +
@@ -68,6 +79,7 @@ function openAccount (num) {
   const slot = { num, view, connected: false };
   wc.setUserAgent(CHROME_UA);
   wc.setAudioMuted(true);        // 4 jogos tocando som = peso inutil -> muta tudo
+  attachShortcuts(wc);           // Ctrl+1..4 / Ctrl+0 mesmo com o jogo em foco
   wc.setWindowOpenHandler(({ url }) => ({ action: 'allow', overrideBrowserWindowOptions: { width: 520, height: 680 } }));
   wc.on('dom-ready', () => { slot._tk = null; layout(); applyFps(wc); });
   const onNav = (_e, url) => { slot.connected = /\/play|\/game/.test(url) && !/\/login|\/register/.test(url); emitState(); };
@@ -115,13 +127,19 @@ function layout () {
   const gx = B + sideW, gw = Math.max(0, W - B - gx);
   const vis = (solo >= 0 && slots[solo]) ? [slots[solo]] : slots;
   const visSet = new Set(vis);
-  const rects = tiler(gx, topY, gw, areaH, vis.length, mode);
-  slots.forEach(s => s.view.setBounds(HIDDEN));
-  vis.forEach((s, k) => s.view.setBounds(rects[k]));
-  // economia por foco: tela escondida cai pra BG_FPS; visivel segue o eco (so re-injeta quando muda)
+  if (statsMode) {
+    slots.forEach(s => s.view.setBounds(HIDDEN));           // jogos ao fundo
+    if (statsView) statsView.setBounds({ x: gx, y: topY, width: gw, height: areaH });
+  } else {
+    if (statsView) statsView.setBounds(HIDDEN);
+    const rects = tiler(gx, topY, gw, areaH, vis.length, mode);
+    slots.forEach(s => s.view.setBounds(HIDDEN));
+    vis.forEach((s, k) => s.view.setBounds(rects[k]));
+  }
+  // fps por tela: stats=1fps · escondida=BG_FPS · visivel+eco=15 · visivel=full (so re-injeta quando muda)
   slots.forEach(s => {
-    const key = !visSet.has(s) ? 'bg' : (ecoOn ? 'eco' : 'full');
-    if (s._tk !== key) { s._tk = key; setCap(s.view.webContents, key === 'bg' ? BG_FPS : key === 'eco' ? 15 : 0); }
+    const key = statsMode ? 'stats' : (!visSet.has(s) ? 'bg' : (ecoOn ? 'eco' : 'full'));
+    if (s._tk !== key) { s._tk = key; setCap(s.view.webContents, key === 'stats' ? 1 : key === 'bg' ? BG_FPS : key === 'eco' ? 15 : 0); }
   });
 }
 
@@ -138,11 +156,18 @@ function buildChrome () {
   titlebar = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'lite-titlebar-preload.js') } });
   titlebar.webContents.loadFile(path.join(__dirname, 'renderer', 'lite-titlebar.html'));
   win.contentView.addChildView(titlebar);
+  attachShortcuts(titlebar.webContents);
 
   sidebar = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'host-preload.js'), contextIsolation: true } });
   sidebar.webContents.loadFile(path.join(__dirname, 'renderer', 'host-toolbar.html'));
   sidebar.webContents.on('did-finish-load', emitState);
   win.contentView.addChildView(sidebar);
+  attachShortcuts(sidebar.webContents);
+
+  statsView = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'host-preload.js'), contextIsolation: true } });
+  statsView.webContents.loadFile(path.join(__dirname, 'renderer', 'stats-grid.html'));
+  win.contentView.addChildView(statsView);
+  attachShortcuts(statsView.webContents);
 }
 
 function openDashboard () {
@@ -175,6 +200,8 @@ ipcMain.handle('lite:eco', () => { ecoOn = !ecoOn; slots.forEach(s => { s._tk = 
 ipcMain.handle('lite:eco-state', () => ecoOn);
 ipcMain.handle('lite:fps', () => { fpsOn = !fpsOn; slots.forEach(s => applyFps(s.view.webContents)); return fpsOn; });
 ipcMain.handle('lite:fps-state', () => fpsOn);
+ipcMain.handle('lite:stats', () => { statsMode = !statsMode; layout(); if (statsMode && statsView) statsView.webContents.executeJavaScript('window.__refresh&&window.__refresh()').catch(() => {}); return statsMode; });
+ipcMain.handle('lite:stats-state', () => statsMode);
 
 // ---------------- window.ml (contrato da sidebar original) ----------------
 ipcMain.handle('get-state', () => stateObj());

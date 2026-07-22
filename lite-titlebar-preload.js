@@ -7,4 +7,6 @@ contextBridge.exposeInMainWorld('win', {
   getEco:    () => ipcRenderer.invoke('lite:eco-state'),
   toggleFps: () => ipcRenderer.invoke('lite:fps'),
   getFps:    () => ipcRenderer.invoke('lite:fps-state'),
+  toggleStats: () => ipcRenderer.invoke('lite:stats'),
+  getStats:    () => ipcRenderer.invoke('lite:stats-state'),
 });
