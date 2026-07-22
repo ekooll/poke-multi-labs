@@ -113,8 +113,8 @@
   const fmt = (n) => Number(n || 0).toLocaleString('pt-BR')
   const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(Number(n || 0)).toLocaleString('pt-BR')
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
-  const BALL_LABELS = { poke: 'Poké', ultra: 'Ultra', idle: 'Idle', great: 'Great', master: 'Master' }
-  const BALL_ORDER = ['poke', 'ultra', 'idle', 'great', 'master']
+  const BALL_LABELS = { poke: 'Poké', great: 'Great', super: 'Super', ultra: 'Ultra', idle: 'Idle', master: 'Master' }
+  const BALL_ORDER = ['poke', 'great', 'super', 'ultra', 'idle', 'master']
   let busy = false
   let LOW = parseInt(localStorage.getItem('pml_lowball') || '500') || 500
 

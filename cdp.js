@@ -161,12 +161,20 @@ function _stateFn () {
     // leitura ao vivo via localStorage.__vperts (populado por userscript/Gabriel).
     // NAO e interceptacao — so leitura de um valor. Traz kills/xp/catches/shiny/ball-quebrada.
     let live = null
-    try { const raw = localStorage.getItem('__vperts'); if (raw) { const w = JSON.parse(raw); live = { kills: w.kills, xp: w.xp, caught: w.caught, brokenBalls: w.brokenBalls, shinies: w.shinies, brokenShiny: w.brokenShiny, shiniesCaught: w.shiniesCaught, lastCatch: w.lastCatch, bestCatch: w.bestCatch, rareDrops: w.rareDrops, msgs: w.msgs, startTs: w.startTs } } } catch (e) {}
+    try { const raw = localStorage.getItem('__vperts'); if (raw) { const w = JSON.parse(raw); live = { kills: w.kills, xp: w.xp, caught: w.caught, brokenBalls: w.brokenBalls, shinies: w.shinies, brokenShiny: w.brokenShiny, shiniesCaught: w.shiniesCaught, lastCatch: w.lastCatch, bestCatch: w.bestCatch, rareDrops: w.rareDrops, ballCounts: w.ballCounts, msgs: w.msgs, startTs: w.startTs } } } catch (e) {}
     const shinies = live && live.shinies != null ? live.shinies : null
     const brokenShiny = live && live.brokenShiny != null ? live.brokenShiny : null
 
-    const ballsTotal = Object.values(balls).reduce((a, b) => a + (b || 0), 0)
-    return { ok: true, ts: Date.now(), name, level, zone, active, hp, hpMax, hunt: { seen: huntSeen, searching, wild, timer }, balls, ballsTotal, potions, revives, money, shinies, brokenShiny, live, an: hasAn ? an : null }
+    // contagem de bolas do WS (balls.counts, estavel) sobrepoe a leitura do DOM
+    let finalBalls = balls
+    if (live && live.ballCounts) {
+      const BID = { '1': 'poke', '2': 'great', '3': 'super', '4': 'ultra', '5': 'master', '6': 'idle' }
+      const wb = {}
+      for (const id in live.ballCounts) { const k = BID[id]; if (k && live.ballCounts[id] != null) wb[k] = live.ballCounts[id] }
+      if (Object.keys(wb).length) finalBalls = wb
+    }
+    const ballsTotal = Object.values(finalBalls).reduce((a, b) => a + (b || 0), 0)
+    return { ok: true, ts: Date.now(), name, level, zone, active, hp, hpMax, hunt: { seen: huntSeen, searching, wild, timer }, balls: finalBalls, ballsTotal, potions, revives, money, shinies, brokenShiny, live, an: hasAn ? an : null }
   } catch (e) { return { ok: false, err: String((e && e.message) || e) } }
 }
 const STATE_EXPR = '(' + _stateFn.toString() + ')()'
