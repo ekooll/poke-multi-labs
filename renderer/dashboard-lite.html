@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Dashboard das contas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800&family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0605; --surface-2:#1e1210; --surface-3:#261712;
+    --line:rgba(216,138,74,.18); --line-strong:rgba(229,179,79,.4);
+    --gold:#e5b34f; --gold-soft:#d98350; --cream:#f7eee7;
+    --muted:#b5a196; --faint:#7d6d64; --good:#4fc47a; --bad:#e24b35; --warn:#e5b34f;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;color:var(--cream);
+    font-family:Inter,system-ui,-apple-system,sans-serif;
+    background:radial-gradient(120% 90% at 0% 0%,#1b0f0b 0%,#0a0605 60%)}
+  .bar{display:flex;align-items:center;justify-content:space-between;padding:7px 8px 7px 12px;
+    background:linear-gradient(90deg,#170807,#2a0f0b 50%,#170807);
+    border-bottom:1px solid rgba(226,75,53,.22);-webkit-app-region:drag}
+  .bar .t{display:flex;align-items:center;gap:9px}
+  .bar .logo{width:22px;height:22px;object-fit:contain;filter:drop-shadow(0 1px 3px rgba(0,0,0,.5))}
+  .bar .tt{font-family:'Cinzel',Georgia,serif;font-weight:800;font-size:14px;color:var(--gold)}
+  .bar .tt small{display:block;font-family:Inter,sans-serif;font-weight:600;font-size:8.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.14em;margin-top:1px}
+  .wbtns{display:flex;gap:2px;-webkit-app-region:no-drag}
+  .bar button{-webkit-app-region:no-drag;background:transparent;border:0;color:var(--faint);
+    font-size:13px;cursor:pointer;border-radius:6px;width:26px;height:26px;line-height:1}
+  .bar button:hover{color:var(--cream);background:rgba(255,255,255,.08)}
+  #pin.on{color:var(--gold);background:rgba(229,179,79,.16)}
+  #x:hover{color:#fff;background:var(--bad)}
+  .wrap{height:calc(100% - 42px - 36px - 44px);overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:11px}
+  .capbar{display:flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-bottom:1px solid var(--line);background:#0d0807}
+  .capbar span{font-size:10px;color:var(--gold-soft);text-transform:uppercase;letter-spacing:.08em;font-weight:800;white-space:nowrap}
+  .capbar select{flex:1;background:#0b0706;border:1px solid var(--line);border-radius:8px;color:var(--cream);padding:5px 8px;font-family:inherit;font-size:12px;font-weight:600;outline:none;cursor:pointer}
+  .capbar select:focus{border-color:var(--gold)}
+  .wrap::-webkit-scrollbar{width:7px}.wrap::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:4px}
+
+  /* ===== quadro geral ===== */
+  .geral{background:linear-gradient(160deg,rgba(34,20,17,.95),rgba(13,8,7,.96));
+    border:1px solid var(--line-strong);border-radius:16px;padding:0;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.3);flex:none}
+  .gthead{display:flex;align-items:center;gap:8px;width:100%;background:transparent;border:0;cursor:pointer;padding:12px 13px;font-family:inherit;text-align:left}
+  .gthead:hover{background:rgba(255,255,255,.03)}
+  .geral .gt{font-family:'Cinzel',serif;font-weight:800;font-size:13px;color:var(--gold);letter-spacing:.04em}
+  .geral.open .chev{transform:rotate(90deg);color:var(--gold-soft)}
+  .gbody{padding:0 13px 13px}
+  .gbody[hidden]{display:none}
+  .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+  .tile{background:#0b0706;border:1px solid var(--line);border-radius:12px;padding:10px 8px;text-align:center}
+  .tile[hidden]{display:none}
+  .tile .k{font-size:9px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;font-weight:800}
+  .tile .v{font-size:20px;font-weight:800;margin-top:3px;color:var(--cream);font-family:'Cinzel',serif;line-height:1}
+  .tile.gold .v{color:var(--gold)} .tile.good .v{color:var(--good)} .tile.warn .v{color:var(--warn)} .tile.bad .v{color:var(--bad)}
+
+  /* ===== conta = dropdown ===== */
+  .acc{border:1px solid var(--line);border-radius:13px;overflow:hidden;flex:none;background:linear-gradient(160deg,rgba(30,18,16,.6),rgba(13,8,7,.6))}
+  .acc.down{border-color:rgba(226,75,53,.55)} .acc.warn{border-color:rgba(229,179,79,.45)}
+  .ahead{display:flex;align-items:center;gap:9px;width:100%;background:transparent;border:0;cursor:pointer;
+    padding:11px 12px;color:var(--cream);font-family:inherit;text-align:left}
+  .ahead:hover{background:rgba(255,255,255,.03)}
+  .chev{color:var(--faint);font-size:11px;transition:transform .18s;flex:none;width:12px}
+  .acc.open .chev{transform:rotate(90deg);color:var(--gold-soft)}
+  .aname{font-family:'Cinzel',serif;font-weight:800;font-size:15px;color:var(--cream);flex:none;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .aquick{flex:1;min-width:0;color:var(--muted);font-size:11.5px;display:flex;gap:9px;flex-wrap:wrap;overflow:hidden}
+  .aquick b{color:var(--cream);font-weight:800}
+  .abadge{flex:none;font-size:10.5px;font-weight:800;padding:4px 9px;border-radius:99px;white-space:nowrap}
+  .b-ok{color:#0c1a10;background:var(--good)} .b-warn{color:#1a1405;background:var(--warn)} .b-down{color:#fff;background:var(--bad)}
+  .abody{padding:0 12px 13px;display:flex;flex-direction:column;gap:10px}
+  .abody[hidden]{display:none}
+  .sub{font-size:12px;color:var(--muted);line-height:1.5}
+  .hpbar{height:9px;border-radius:5px;background:#0d0807;border:1px solid var(--line);overflow:hidden}
+  .hpfill{height:100%;background:linear-gradient(90deg,#3ae07c,#1fb959)}
+  .pills{display:flex;gap:6px;flex-wrap:wrap}
+  .pill{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:800;color:var(--cream);
+    background:#0d0807;border:1px solid var(--line);border-radius:10px;padding:6px 11px}
+  .pill.zero{border-color:rgba(226,75,53,.5);color:#ff9d8d}
+  .pill i{color:var(--faint);font-style:normal;font-weight:600;font-size:11px}
+  .ballimg{width:20px;height:20px;display:inline-block;flex:none;background-repeat:no-repeat;background-position:center}
+  .live{display:flex;flex-wrap:wrap;gap:5px 10px;font-size:12px;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px}
+  .live b{color:var(--cream);font-weight:800}
+  .intel{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 12px}
+  .intel b{color:var(--gold-soft);font-weight:800}
+  .last{font-size:12.5px;font-weight:700;color:var(--cream);background:rgba(91,155,230,.09);border:1px solid rgba(91,155,230,.3);border-radius:9px;padding:6px 10px}
+  .rare{font-size:11px;font-weight:700;color:#ffe0a0;background:rgba(229,179,79,.12);border:1px solid rgba(229,179,79,.42);border-radius:8px;padding:5px 9px}
+  .caps{display:flex;flex-direction:column;gap:3px;border-top:1px dashed var(--line);padding-top:7px;max-height:150px;overflow-y:auto}
+  .caps::-webkit-scrollbar{width:6px}.caps::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:3px}
+  .cap{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11.5px}
+  .cap .cn{color:var(--cream);font-weight:700} .cap .civ{color:var(--faint);font-size:10.5px}
+  .cap .cq{font-weight:800;white-space:nowrap}
+  .cap.sh .cn::before{content:'✨ '}
+  .na{color:var(--faint);font-style:italic;font-size:12px;text-align:center;padding:16px}
+
+  .ft{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;border-top:1px solid var(--line);height:44px}
+  .ft label{font-size:11px;color:var(--faint);display:flex;align-items:center;gap:5px}
+  .ft input[type=number]{width:56px;background:#0b0706;border:1px solid var(--line);border-radius:6px;color:var(--cream);padding:3px 5px;font-family:inherit;font-size:11px}
+  .ft .stamp{font-size:10px;color:var(--faint)}
+  .rgrip{position:fixed;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;-webkit-app-region:no-drag;opacity:.55}
+  .rgrip:hover{opacity:1}
+  .rgrip::after{content:"";position:absolute;right:3px;bottom:3px;width:12px;height:12px;
+    background:linear-gradient(135deg,transparent 45%,var(--gold-soft) 45% 55%,transparent 55%),
+      linear-gradient(135deg,transparent 65%,var(--gold-soft) 65% 75%,transparent 75%),
+      linear-gradient(135deg,transparent 85%,var(--gold-soft) 85% 95%,transparent 95%)}
+</style>
+</head>
+<body>
+  <div class="bar">
+    <span class="t"><img src="logo-vp.png" class="logo" alt="VP"><span class="tt">Dashboard<small>das contas</small></span></span>
+    <div class="wbtns">
+      <button id="pin" title="Fixar no topo">📌</button>
+      <button id="x" title="Fechar">✕</button>
+    </div>
+  </div>
+  <div class="capbar">
+    <span>Capturas</span>
+    <select id="capfilter">
+      <option value="all">Todas as qualidades</option>
+      <option value="shiny">✨ Só shiny</option>
+      <option value="1.0">Comum ou melhor</option>
+      <option value="1.1">Incomum ou melhor</option>
+      <option value="1.3">Rara ou melhor</option>
+      <option value="1.5">Épica ou melhor</option>
+      <option value="1.7">Lendária ou melhor</option>
+      <option value="2.0">Mítica ou melhor</option>
+      <option value="3.0">Anciã ou melhor</option>
+      <option value="4.0">Divina</option>
+    </select>
+  </div>
+  <div class="wrap" id="wrap"><div class="na">carregando…</div></div>
+  <div class="ft">
+    <label><input type="checkbox" id="auto" checked /> auto (4s)</label>
+    <label>avisar &lt; <input type="number" id="lowball" value="500"> bolas</label>
+    <span class="stamp" id="stamp"></span>
+  </div>
+  <div class="rgrip" id="rgrip" title="Arraste pra redimensionar"></div>
+<script>
+  const $ = (s) => document.querySelector(s)
+  const fmt = (n) => Number(n || 0).toLocaleString('pt-BR')
+  const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(Number(n || 0)).toLocaleString('pt-BR')
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]))
+  const namesMap = () => { try { return JSON.parse(localStorage.getItem('pml_names') || '{}') } catch { return {} } }
+  const nameOf = (n) => namesMap()[n] || ('Conta ' + n)
+  const BALL_ORDER = ['poke','great','super','ultra','idle','master']
+  const BALL_ICON = { poke:'https://poke.idleworld.online/assets/markitems/pokeball.png', great:'https://poke.idleworld.online/assets/markitems/greatball.png', super:'https://poke.idleworld.online/assets/markitems/superball.png', ultra:'https://poke.idleworld.online/assets/markitems/ultraball.png', idle:'https://poke.idleworld.online/assets/markitems/idleball.png' }
+  const BALL_LABELS = { poke:'Poké', great:'Great', super:'Super', ultra:'Ultra', idle:'Idle', master:'Master' }
+  function qtier (q){ if(q==null)return ''; if(q<1)return 'Fraca'; if(q<1.1)return 'Comum'; if(q<1.3)return 'Incomum'; if(q<1.5)return 'Rara'; if(q<1.7)return 'Épica'; if(q<2)return 'Lendária'; if(q<3)return 'Mítica'; if(q<4)return 'Anciã'; return 'Divina' }
+  const TCOL = { 'Épica':'#b07bd8','Lendária':'#e5b34f','Mítica':'#ff6bd0','Anciã':'#ff8f3d','Divina':'#5fe0e0','Rara':'#5b9be6','Incomum':'#5fd38a','Comum':'#c9c9c9','Fraca':'#8a8f97' }
+  let LOW = parseInt(localStorage.getItem('pml_lowball') || '500') || 500
+  let capFilter = localStorage.getItem('pml_capfilter') || 'all'   // filtro de qualidade das capturas
+  const openSet = new Set()   // contas expandidas (lembra entre refreshes)
+  let geralOpen = localStorage.getItem('pml_geralopen') !== '0'   // quadro geral aberto por padrao
+  let busy = false, firstRender = true
+
+  function alertOf (st){
+    if(!st || st.ok===false) return { cls:'down', badge:'b-down', txt:'🔴 Off' }
+    if(st.balls && Object.keys(st.balls).length){
+      if(st.ballsTotal===0) return { cls:'down', badge:'b-down', txt:'⚠️ Sem bolas' }
+      if(st.ballsTotal<LOW) return { cls:'warn', badge:'b-warn', txt:'🟡 Bolas' }
+    }
+    if(!st.hunt || !st.hunt.seen) return { cls:'warn', badge:'b-warn', txt:'⚠️ Fora' }
+    return { cls:'', badge:'b-ok', txt:'🟢 Hunt' }
+  }
+
+  function renderGeral (rows){
+    let inHunt=0, alerts=0, kills=0, caught=0, shiny=0, broken=0, balls=0, loot=0, hasLoot=false
+    rows.forEach(r=>{ const st=r.state, a=alertOf(st)
+      if(a.badge==='b-ok') inHunt++; else alerts++
+      if(st && st.live){ kills+=st.live.kills||0; caught+=st.live.caught||0; shiny+=st.live.shiniesCaught||st.live.shinies||0; broken+=st.live.brokenShiny||0 }
+      if(st && st.ballsTotal!=null) balls+=st.ballsTotal
+      if(st && st.an && st.an.loot!=null){ loot+=st.an.loot; hasLoot=true }
+    })
+    const tile=(k,v,cls)=>'<div class="tile '+(cls||'')+'"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>'
+    return '<div class="geral'+(geralOpen?' open':'')+'"><button class="gthead"><span class="chev">▸</span><span class="gt">📊 Quadro geral</span></button><div class="gbody"'+(geralOpen?'':' hidden')+'><div class="tiles">'+
+      tile('Contas', rows.length)+
+      tile('Na hunt', inHunt, 'good')+
+      tile('Alertas', alerts, alerts?'bad':'')+
+      tile('Capturas', fmt(caught), 'gold')+
+      tile('✨ Shiny', fmt(shiny), shiny?'gold':'')+
+      tile('💔 Ball shiny', fmt(broken), broken?'bad':'')+
+      tile('⚔️ Kills', fmt(kills))+
+      tile('● Bolas', fmt(balls))+
+      (hasLoot?tile('💰 Loot', money(loot), 'good'):'')+
+      '</div></div></div>'
+  }
+
+  function bodyHtml (st){
+    if(!st || st.ok===false) return '<div class="na">jogo não respondeu (logou?)</div>'
+    let h=''
+    const info=[]; if(st.level!=null)info.push('Nível '+st.level); if(st.zone)info.push('📍 '+st.zone); if(st.active)info.push('🐾 '+st.active)
+    if(info.length) h+='<div class="sub">'+esc(info.join('  ·  '))+'</div>'
+    if(st.hp!=null && st.hpMax){ const p=Math.max(0,Math.min(100,st.hp/st.hpMax*100)).toFixed(0)
+      h+='<div class="hpbar"><div class="hpfill" style="width:'+p+'%"></div></div>'
+      let hl='HP '+fmt(st.hp)+' / '+fmt(st.hpMax); if(st.hunt&&st.hunt.timer)hl+='   ⏱ '+st.hunt.timer; if(st.hunt&&st.hunt.wild!=null)hl+='   '+st.hunt.wild+' selvagem'
+      h+='<div class="sub">'+hl+'</div>' }
+    // bolas com imagem + potions/revives/shiny/broken
+    const balls=st.balls||{}; let pills=''
+    // sprites: poke/great/super/ultra sao 32x32 com a ball só no centro (15x15) → zoom 213% p/ igualar a idle (que preenche tudo)
+    const ballIcon=(k)=>{ if(!BALL_ICON[k]) return '<i>'+BALL_LABELS[k]+'</i>'; const sz=(k==='idle')?'contain':'213%'; return '<span class="ballimg" style="background-image:url('+BALL_ICON[k]+');background-size:'+sz+'"></span>' }
+    BALL_ORDER.forEach(k=>{ if(balls[k]!=null) pills+='<span class="pill'+(balls[k]===0?' zero':'')+'" title="'+BALL_LABELS[k]+'">'+ballIcon(k)+'<b>'+fmt(balls[k])+'</b></span>' })
+    const opt=(lbl,v,st2)=>{ if(v==null)return ''; return '<span class="pill" '+(st2||'')+'><i>'+lbl+'</i><b>'+fmt(v)+'</b></span>' }
+    pills+=opt('Potions',st.potions)+opt('Revives',st.revives)
+    if(st.shinies!=null) pills+='<span class="pill" style="border-color:rgba(229,179,79,.55);color:var(--gold)"><i>✨ Shiny</i><b>'+fmt(st.shinies)+'</b></span>'
+    if(st.brokenShiny!=null) pills+='<span class="pill" style="border-color:rgba(226,75,53,.5);color:#ff9d8d"><i>💔 Ball quebrada</i><b>'+fmt(st.brokenShiny)+'</b></span>'
+    if(pills) h+='<div class="pills">'+pills+'</div>'
+    const L=st.live
+    if(L && (L.kills!=null || L.caught!=null)){
+      h+='<div class="live"><span>⚔️ <b>'+fmt(L.kills)+'</b> kills</span><span>🎯 <b>'+fmt(L.caught)+'</b> capt.</span><span>❌ <b>'+fmt(L.brokenBalls)+'</b> perdidas</span></div>'
+      const att=(L.caught||0)+(L.brokenBalls||0), rate=att>0?(L.caught/att*100):0
+      const hrs=L.startTs?(Date.now()-L.startTs)/3600000:0, xph=hrs>0.004?Math.round(L.xp/hrs):null
+      const bits=['🎯 taxa <b>'+rate.toFixed(1)+'%</b>','🔴 <b>'+(L.caught>0?(att/L.caught).toFixed(1):att+'+')+'</b> balls/capt.']; if(xph!=null)bits.push('📈 <b>'+fmt(xph)+'</b> xp/h')
+      h+='<div class="intel">'+bits.join('')+'</div>'
+    }
+    if(L && L.lastCatch){ const c=L.lastCatch, q=c.quality!=null?Number(c.quality).toFixed(3):'?'
+      h+='<div class="last">🎁 última: '+(c.shiny?'✨ ':'')+esc(c.name||'?')+' · '+qtier(c.quality)+' Q'+q+' · IV '+(c.ivTotal!=null?c.ivTotal:'?')+'</div>' }
+    if(L && L.rareDrops && L.rareDrops.length) h+='<div class="rare">💎 '+L.rareDrops.map(esc).join('  ·  ')+'</div>'
+    if(L && Array.isArray(L.catches) && L.catches.length){
+      let list=L.catches.slice()
+      if(capFilter==='shiny') list=list.filter(c=>c.shiny)
+      else if(capFilter!=='all'){ const mn=parseFloat(capFilter); list=list.filter(c=>(c.quality||0)>=mn) }
+      list=list.slice(-25).reverse()
+      if(list.length) h+='<div class="caps">'+list.map(c=>{ const t=qtier(c.quality), col=TCOL[t]||'var(--muted)'
+        return '<div class="cap'+(c.shiny?' sh':'')+'"><span class="cn">'+esc(c.name||'?')+' <span class="civ">IV '+(c.ivTotal!=null?c.ivTotal:'?')+'</span></span><span class="cq" style="color:'+col+'">'+t+' '+(c.quality!=null?Number(c.quality).toFixed(2):'?')+'</span></div>' }).join('')+'</div>'
+      else h+='<div class="sub" style="color:var(--faint);font-style:italic">nenhuma captura nesse filtro</div>'
+    }
+    if(st.an){ const A=st.an, p=[]
+      if(A.loot!=null)p.push('💰 Loot <b>'+money(A.loot)+'</b>'); if(A.cashH!=null)p.push('📈 <b>'+money(A.cashH)+'</b>/h'); if(A.saldo!=null)p.push('Saldo <b>'+money(A.saldo)+'</b>')
+      if(p.length) h+='<div class="intel">'+p.join('')+'</div>' }
+    return h
+  }
+
+  function quickLine (st){
+    if(!st || st.ok===false) return '<span>—</span>'
+    const L=st.live||{}, parts=[]
+    if(L.kills!=null) parts.push('⚔️ <b>'+fmt(L.kills)+'</b>')
+    if(L.caught!=null) parts.push('🎯 <b>'+fmt(L.caught)+'</b>')
+    if(st.ballsTotal!=null) parts.push('● <b>'+fmt(st.ballsTotal)+'</b>')
+    if((L.shiniesCaught||0)>0) parts.push('✨ <b>'+fmt(L.shiniesCaught)+'</b>')
+    return parts.join('') || '<span>—</span>'
+  }
+
+  function render (rows){
+    const wrap=$('#wrap')
+    wrap.innerHTML = renderGeral(rows) + rows.map(r=>{
+      const st=r.state, a=alertOf(st), nm=nameOf(r.num), open=openSet.has(r.num)
+      return '<div class="acc '+a.cls+(open?' open':'')+'" data-num="'+r.num+'">'+
+        '<button class="ahead"><span class="chev">▸</span>'+
+          '<span class="aname">'+esc(nm)+'</span>'+
+          '<span class="aquick">'+quickLine(st)+'</span>'+
+          '<span class="abadge '+a.badge+'">'+a.txt+'</span></button>'+
+        '<div class="abody"'+(open?'':' hidden')+'>'+bodyHtml(st)+'</div></div>'
+    }).join('')
+    wrap.querySelectorAll('.acc').forEach(el=>{
+      const num=+el.dataset.num
+      el.querySelector('.ahead').onclick=()=>{ if(openSet.has(num))openSet.delete(num); else openSet.add(num)
+        const op=openSet.has(num); el.classList.toggle('open',op); el.querySelector('.abody').hidden=!op }
+    })
+    const gh=wrap.querySelector('.gthead')
+    if(gh) gh.onclick=()=>{ geralOpen=!geralOpen; localStorage.setItem('pml_geralopen',geralOpen?'1':'0')
+      const g=wrap.querySelector('.geral'); g.classList.toggle('open',geralOpen); g.querySelector('.gbody').hidden=!geralOpen }
+  }
+
+  async function refresh (){
+    if(busy)return; busy=true
+    try{
+      const r=await window.ml.readDashboard()
+      if(!r||!r.available){ $('#wrap').innerHTML='<div class="na">Leitor indisponível.</div>'; return }
+      if(!r.results||!r.results.length){ $('#wrap').innerHTML='<div class="na">Nenhuma conta aberta.</div>'; return }
+      if(firstRender){ r.results.forEach(row=>{ const a=alertOf(row.state); if(a.cls) openSet.add(row.num) }); firstRender=false } // abre só as com alerta
+      render(r.results)
+      const d=new Date(); $('#stamp').textContent='atualizado '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0')
+    }catch(e){ $('#wrap').innerHTML='<div class="na">Erro: '+esc(e.message)+'</div>' }
+    finally{ busy=false }
+  }
+
+  $('#x').onclick=()=>window.close()
+  let pinned=false
+  $('#pin').onclick=()=>{ pinned=!pinned; window.ml.dashboardPin(pinned); $('#pin').classList.toggle('on',pinned) }
+  const lb=$('#lowball'); lb.value=LOW; lb.addEventListener('input',()=>{ LOW=parseInt(lb.value)||0; localStorage.setItem('pml_lowball',LOW); refresh() })
+  const cf=$('#capfilter'); cf.value=capFilter; cf.addEventListener('change',()=>{ capFilter=cf.value; localStorage.setItem('pml_capfilter',capFilter); refresh() })
+  $('#rgrip').addEventListener('mousedown',(e)=>{ e.preventDefault()
+    const sx=e.screenX, sy=e.screenY, sw=window.outerWidth, sh=window.outerHeight
+    const mv=(ev)=>window.ml.dashboardResize(sw+(ev.screenX-sx), sh+(ev.screenY-sy))
+    const up=()=>{ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up) }
+    document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up) })
+  setInterval(()=>{ if($('#auto').checked) refresh() },4000)
+  refresh()
+</script>
+</body>
+</html>

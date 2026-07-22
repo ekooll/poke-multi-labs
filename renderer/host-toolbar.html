@@ -233,12 +233,15 @@
       row.className = 'arow' + (s.solo === sl.i ? ' on' : '')
       const nm = nameOf(sl.num)
       row.innerHTML = '<span class="dot' + (sl.embedded ? ' up' : '') + '"></span>' +
-        '<button class="aname" title="Clique: focar · Duplo-clique: renomear"></button>' +
+        '<button class="aname" title="Clique: focar · Duplo-clique ou ✎: renomear"></button>' +
+        '<button class="ax" title="Renomear (seu personagem)">✎</button>' +
         '<button class="ax" title="Fechar">✕</button>'
       const an = row.querySelector('.aname')
       an.textContent = nm
       wireFocusEdit(an, sl, () => startEdit(row, sl))
-      row.querySelector('.ax').onclick = () => window.ml.closeAccount(sl.i)
+      const axs = row.querySelectorAll('.ax')
+      axs[0].onclick = (e) => { e.stopPropagation(); startEdit(row, sl) }
+      axs[1].onclick = () => window.ml.closeAccount(sl.i)
       box.appendChild(row)
     })
     // + Conta (respeita o limite da licenca)

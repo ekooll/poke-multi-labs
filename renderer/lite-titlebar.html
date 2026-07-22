@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>titlebar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800&family=Inter:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{ --gold:#e5b34f; --gold-soft:#d98350; --cream:#f7eee7;
+    --muted:#b5a196; --faint:#7d6d64; --red-2:#e24b35; --good:#4fc47a;
+    --line:rgba(216,138,74,.18); }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;color:var(--cream);font-family:Inter,system-ui,sans-serif;font-size:12px;
+    background:linear-gradient(90deg,#160c0a,#241110 50%,#160c0a);
+    border-bottom:1px solid rgba(226,75,53,.22)}
+  .tb{display:flex;align-items:center;height:100%;-webkit-app-region:drag}
+  .brand{padding-left:11px;font-family:'Cinzel',Georgia,serif;font-weight:800;color:var(--gold);font-size:12.5px;letter-spacing:.02em;-webkit-app-region:drag}
+  .eco{margin-left:10px;-webkit-app-region:no-drag;background:transparent;border:1px solid rgba(79,196,122,.4);
+    color:var(--good);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit}
+  .eco.off{border-color:var(--line);color:var(--faint)}
+  .eco:hover{filter:brightness(1.1)}
+  .fps{margin-left:6px;-webkit-app-region:no-drag;background:transparent;border:1px solid rgba(79,196,122,.4);
+    color:var(--good);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit}
+  .fps.off{border-color:var(--line);color:var(--faint)}
+  .fps:hover{filter:brightness(1.1)}
+  .spacer{flex:1}
+  .ctrls{display:flex;align-items:center;height:100%;-webkit-app-region:no-drag}
+  .ctrls button{background:transparent;border:0;color:var(--muted);width:44px;height:100%;font-size:13px;cursor:pointer;font-family:inherit}
+  .ctrls button:hover{color:var(--cream);background:rgba(255,255,255,.08)}
+  #close:hover{color:#fff;background:var(--red-2)}
+</style>
+</head>
+<body>
+  <div class="tb">
+    <span class="brand">Vperts Multi</span>
+    <button class="eco" id="eco" title="Cap de 15fps p/ economizar CPU/RAM">🔋 Eco: ON</button>
+    <button class="fps off" id="fps" title="Mostrar FPS no canto de cada tela">📈 FPS: OFF</button>
+    <div class="spacer"></div>
+    <div class="ctrls">
+      <button id="min" title="Minimizar">—</button>
+      <button id="max" title="Maximizar">▢</button>
+      <button id="close" title="Fechar">✕</button>
+    </div>
+  </div>
+<script>
+  const eco = document.getElementById('eco');
+  const paint = (on) => { eco.classList.toggle('off', !on); eco.textContent = on ? '🔋 Eco: ON' : '🔋 Eco: OFF'; };
+  eco.onclick = async () => paint(await window.win.toggleEco());
+  window.win.getEco().then(paint);
+  const fps = document.getElementById('fps');
+  const paintFps = (on) => { fps.classList.toggle('off', !on); fps.textContent = on ? '📈 FPS: ON' : '📈 FPS: OFF'; };
+  fps.onclick = async () => paintFps(await window.win.toggleFps());
+  window.win.getFps().then(paintFps);
+  document.getElementById('min').onclick = () => window.win.minimize();
+  document.getElementById('max').onclick = () => window.win.maximize();
+  document.getElementById('close').onclick = () => window.win.close();
+</script>
+</body>
+</html>
