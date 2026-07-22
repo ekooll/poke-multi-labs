@@ -295,7 +295,8 @@
     const plano = maxT >= 4 ? 'Assinante · 4 telas' : 'Grátis · 1 tela'
     const foco = s.solo >= 0 ? ' · foco Conta ' + ((s.slots.find(x => x.i === s.solo) || {}).num || '') : ''
     $('#foot').innerHTML =
-      '<div class="fline"><b>' + s.embedded + '/' + s.count + '</b> contas' + foco + '</div>' +
+      // quantas telas estao ABERTAS (antes mostrava quantas estavam na hunt, que e outra coisa)
+      '<div class="fline"><b>' + s.count + '</b> ' + (s.count === 1 ? 'conta aberta' : 'contas abertas') + foco + '</div>' +
       (s.email ? '<div class="fline">' + s.email + '</div>' : '') +
       '<div class="fline">' + plano + (maxT < 4 ? ' · <span class="up" id="up">assinar</span>' : '') +
       ' · <span class="up" id="sair">sair</span></div>'

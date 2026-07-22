@@ -107,7 +107,7 @@
   //  · o jogo ZERA os contadores ao trocar de hunt (`field-init.huntKey`) — por isso o nosso
   //    "kills" ficava maior que o "Derrotados" da tela.
   const V = {
-    msgs: 0, startTs: Date.now(), lastMsgTs: 0, lastKillTs: 0, byType: {},
+    msgs: 0, startTs: Date.now(), lastMsgTs: 0, lastKillTs: 0, lastFieldTs: 0, byType: {},
     // sessao: zera na troca de hunt, igual o Hunt Analyzer do jogo (e' o que bate na tela)
     kills: 0, xp: 0, attempts: 0, caught: 0, brokenBalls: 0,
     shinies: 0, shiniesCaught: 0, shinyWild: 0, brokenShiny: 0,
@@ -210,8 +210,13 @@
           V.hunt = { slug: m.slug || null, key: P.huntKey, since: Date.now() };
           V.offline = false;
           break;
-        case 'field':           // ruido de movimento; so serve pra saber se ha shiny na tela
-          if (Array.isArray(m.mobs)) P.shinyOnField = m.mobs.some(x => x && x.shiny && !x.dead);
+        case 'field':
+          if (Array.isArray(m.mobs)) {
+            P.shinyOnField = m.mobs.some(x => x && x.shiny && !x.dead);
+            // campo COM mob = area de caca. Na cidade/mercado nao vem mob nenhum — e' esse
+            // carimbo que diz se a conta esta mesmo cacando (o texto da tela mentia).
+            if (m.mobs.length) V.lastFieldTs = Date.now();
+          }
           break;
         case 'field-kill':
           V.kills++; V.tot.kills++; V.lastKillTs = Date.now();   // prova de que a hunt esta viva

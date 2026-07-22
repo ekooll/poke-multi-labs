@@ -174,7 +174,8 @@ function _stateFn () {
           potions: w.potions, revives: w.revives, rareItems: w.rareItems, cura: w.cura, usando: w.usando,
           drops: w.drops, lootGold: w.lootGold, lootItems: w.lootItems, capturesGold: w.capturesGold, ballsUsed: w.ballsUsed,
           ballCounts: w.ballCounts, ballCatalog: w.ballCatalog, msgs: w.msgs, startTs: w.startTs,
-          lastMsgTs: w.lastMsgTs, lastKillTs: w.lastKillTs, hunt: w.hunt, an: w.an, tot: w.tot, offline: w.offline }
+          lastMsgTs: w.lastMsgTs, lastKillTs: w.lastKillTs, lastFieldTs: w.lastFieldTs,
+          hunt: w.hunt, an: w.an, tot: w.tot, offline: w.offline }
       }
     } catch (e) {}
     const shinies = live && live.shinies != null ? live.shinies : null
@@ -247,13 +248,15 @@ function _stateFn () {
       dropsF = live.an.drops.map(d => ({ name: d.name, qty: d.qty, gold: d.gold, icon: ico[d.name] || null }))
         .sort((x, y) => (y.gold || 0) - (x.gold || 0)).slice(0, 14)
     }
-    // Na hunt? o WS sabe de verdade (field-init + kill recente). O DOM so ve o texto
-    // "Procurando... selvagem", que some quando o painel esta fechado -> falso "Fora".
+    // NA HUNT? Só vale sinal de campo do WS. O texto da tela ("Procurando…") continuava
+    // aparecendo depois de sair, e "matou algo faz pouco" segurava o verde por minutos —
+    // os dois davam HUNT com a conta parada no mercado. Agora: mob no campo ou kill nos
+    // ultimos 60s (a ~500 kills/h, e' um kill a cada ~7s; 60s parado ja e' fora).
     let huntF = { seen: huntSeen, searching, wild, timer }
-    if (live && (live.hunt || live.lastKillTs)) {
-      const fresh = live.lastKillTs && (Date.now() - live.lastKillTs) < 120000
-      huntF = { seen: !live.offline && (fresh || huntSeen), searching, wild, timer,
-        slug: live.hunt && live.hunt.slug, fonte: 'ws' }
+    if (live && (live.lastFieldTs || live.lastKillTs || live.hunt)) {
+      const ult = Math.max(live.lastFieldTs || 0, live.lastKillTs || 0)
+      huntF = { seen: !live.offline && !!ult && (Date.now() - ult) < 60000,
+        searching, wild, timer, desde: ult, slug: live.hunt && live.hunt.slug, fonte: 'ws' }
     }
     // potions/revives: ESTOQUE do inventario (WS + catalogo de itens). O numero do DOM vinha
     // do "Supply (... N potions)" do Hunt Analyzer, que e o CONSUMO da sessao — so serve de
