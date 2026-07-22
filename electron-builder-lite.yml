@@ -1,0 +1,32 @@
+# Build da versao LEVE (main-lite.js) sem encostar no package.json do app pago.
+# A cicatriz anterior foi editar o package.json na mao e depois reverter; aqui o entry
+# e a versao entram por extraMetadata, entao o app pago segue intacto em 0.4.5.
+appId: com.vperslab.vpertsmultilite
+productName: VpertsMultiLeve
+directories:
+  output: dist
+extraMetadata:
+  main: main-lite.js
+  version: 0.6.0
+files:
+  - main-lite.js
+  - lite-titlebar-preload.js
+  - host-preload.js
+  - cdp.js
+  - config.js
+  - vperts-ext/**/*
+  - renderer/host-toolbar.html
+  - renderer/lite-titlebar.html
+  - renderer/dashboard-lite.html
+  - renderer/stats-grid.html
+  - renderer/overlay.html
+  - renderer/curtain.html
+  - renderer/logo-vp.png
+  - renderer/logo-vp.ico
+  - renderer/assets/**/*
+  - node_modules/ws/**/*
+win:
+  target: portable
+  signAndEditExecutable: false
+portable:
+  artifactName: VpertsMultiLeve-${version}-portable.exe
