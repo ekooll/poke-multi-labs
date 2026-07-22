@@ -1,6 +1,6 @@
 @echo off
 REM Abre o Chrome no MESMO perfil que o Vperts Multi usa pra Conta 4.
-REM Use isto pra instalar o Tampermonkey + o bridge nesse perfil (uma vez).
+REM Instale aqui: Tampermonkey + (Detalhes) "Permitir user scripts" + o userscript v6.
 REM Depois feche este Chrome e reabra o app -> a Conta 4 tera o bridge.
 setlocal
 set "CH=C:\Program Files\Google\Chrome\Application\chrome.exe"
