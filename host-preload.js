@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('ml', {
   openDashboard: () => ipcRenderer.invoke('open-dashboard'),
   dashboardPin: (on) => ipcRenderer.invoke('dashboard-pin', on),
   dashboardMinimize: () => ipcRenderer.invoke('dashboard-minimize'),
+  dashboardResize: (w, h) => ipcRenderer.invoke('dashboard-resize', w, h),
   checkUpdate: () => ipcRenderer.invoke('check-update'),
   applyUpdate: () => ipcRenderer.invoke('apply-update'),
   getProfile: () => ipcRenderer.invoke('get-profile'),

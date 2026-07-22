@@ -88,6 +88,13 @@
   .ft button:hover{border-color:var(--line-strong);color:var(--gold)}
   .ft label{font-size:11px;color:var(--faint);display:flex;align-items:center;gap:5px;cursor:pointer}
   .ft .stamp{font-size:10px;color:var(--faint)}
+  .rgrip{position:fixed;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;-webkit-app-region:no-drag;z-index:60;opacity:.55}
+  .rgrip:hover{opacity:1}
+  .rgrip::after{content:"";position:absolute;right:3px;bottom:3px;width:12px;height:12px;
+    background:
+      linear-gradient(135deg,transparent 45%,var(--gold-soft) 45%,var(--gold-soft) 55%,transparent 55%),
+      linear-gradient(135deg,transparent 65%,var(--gold-soft) 65%,var(--gold-soft) 75%,transparent 75%),
+      linear-gradient(135deg,transparent 85%,var(--gold-soft) 85%,var(--gold-soft) 95%,transparent 95%)}
 </style>
 </head>
 <body>
@@ -106,6 +113,7 @@
     <label>avisar &lt; <input type="number" id="lowball" value="500" style="width:60px;background:#0b0706;border:1px solid var(--line);border-radius:6px;color:var(--cream);padding:3px 5px;font-family:inherit;font-size:11px"> bolas</label>
     <span class="stamp" id="stamp"></span>
   </div>
+  <div class="rgrip" id="rgrip" title="Arraste pra redimensionar"></div>
 <script>
   const $ = (s) => document.querySelector(s)
   const namesMap = () => { try { return JSON.parse(localStorage.getItem('pml_names') || '{}') } catch { return {} } }
@@ -309,6 +317,14 @@
   $('#min').onclick = () => window.ml.dashboardMinimize()
   let pinned = false
   $('#pin').onclick = () => { pinned = !pinned; window.ml.dashboardPin(pinned); $('#pin').classList.toggle('on', pinned) }
+  // resize arrastando o grip (3 traços no canto), estilo Hunt Analyzer
+  $('#rgrip').addEventListener('mousedown', (e) => {
+    e.preventDefault()
+    const sx = e.screenX, sy = e.screenY, sw = window.outerWidth, sh = window.outerHeight
+    const mv = (ev) => window.ml.dashboardResize(sw + (ev.screenX - sx), sh + (ev.screenY - sy))
+    const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up) }
+    document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up)
+  })
   const lb = $('#lowball'); lb.value = LOW; lb.addEventListener('input', () => { LOW = parseInt(lb.value) || 0; localStorage.setItem('pml_lowball', LOW); refresh() })
   setInterval(() => { if ($('#auto').checked) refresh() }, 4000)
   refresh()

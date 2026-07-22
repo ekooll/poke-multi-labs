@@ -566,6 +566,7 @@ ipcMain.handle('open-dashboard', () => {
 // controles da janela do dashboard (frameless)
 ipcMain.handle('dashboard-pin', (e, on) => { if (dashWin && !dashWin.isDestroyed()) dashWin.setAlwaysOnTop(!!on); return !!on })
 ipcMain.handle('dashboard-minimize', () => { if (dashWin && !dashWin.isDestroyed()) dashWin.minimize(); return true })
+ipcMain.handle('dashboard-resize', (e, w, h) => { if (dashWin && !dashWin.isDestroyed()) dashWin.setSize(Math.max(320, Math.round(w)), Math.max(300, Math.round(h))); return true })
 
 // --- Dashboard: le o estado (HUD) de cada conta via CDP ---
 ipcMain.handle('read-dashboard', async () => {
