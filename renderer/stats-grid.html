@@ -6,199 +6,206 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800&family=Inter:wght@600;700;800&display=swap" rel="stylesheet">
 <style>
-  /* TELA CHEIA: uma conta por quadrante (acompanhando o layout das telas) e o card TOTAL
-     flutuando por cima do encontro delas. Sem moldura de janela — só as divisórias douradas
-     e as bordas no estilo do site (rubi + dourado + carvão, Cinzel/Inter). */
+  /* TELA CHEIA: um card por conta nos cantos, cada um com a sua cor e uma perna
+     apontando pro centro, e a Pokébola central com o total somado. */
   :root{
-    --bg:#0a0605; --line:rgba(216,138,74,.18); --line-strong:rgba(229,179,79,.4);
-    --gold:#e5b34f; --gold-soft:#d98350; --cream:#f7eee7;
-    --muted:#b5a196; --faint:#7d6d64; --good:#4fc47a; --mid:#e0a93c; --bad:#ff6b55;
-    --esc:1;   /* fator de escala do texto: cresce quando há menos contas */
+    --bg:#080a0f; --card:#0d1017; --card2:#0a0d13;
+    --cream:#f2f4f8; --muted:#9aa3b2; --faint:#6b7382;
+    --azul:#3b9dff; --verde:#37d67a; --roxo:#a855f7; --laranja:#f5a524;
+    --bad:#ff6b55; --esc:1;
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;overflow:hidden;color:var(--cream);
-    font-family:Inter,system-ui,sans-serif;background:var(--bg)}
+    font-family:Inter,system-ui,sans-serif;
+    background:radial-gradient(120% 100% at 50% 50%,#101725 0%,var(--bg) 70%)}
 
-  .grid{position:relative;height:100%;display:grid}
-  /* quadrante = uma conta. A divisória dourada faz o papel da moldura. */
-  .quad{position:relative;min-width:0;min-height:0;padding:calc(2.2vh) calc(2.4vw);
-    display:flex;flex-direction:column;
-    background:radial-gradient(120% 100% at 0% 0%,#1b0f0b 0%,#0a0605 62%);
-    border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
-  .quad::after{content:"";position:absolute;inset:0;pointer-events:none;
-    box-shadow:inset 0 0 0 1px rgba(229,179,79,.07)}
-  .quad.warn{background:radial-gradient(120% 100% at 0% 0%,#241606 0%,#0a0605 62%)}
-  .quad.down{background:radial-gradient(120% 100% at 0% 0%,#2a0f0b 0%,#0a0605 62%)}
-  .qh{display:flex;align-items:center;gap:12px;padding-bottom:calc(1.4vh);
-    border-bottom:1px solid var(--line-strong)}
-  .qn{font-family:'Cinzel',Georgia,serif;font-weight:800;letter-spacing:.05em;color:var(--cream);
-    font-size:calc(2.6vh * var(--esc));flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .qb{font-size:calc(1.35vh * var(--esc));font-weight:800;padding:.45em 1.1em;border-radius:99px;
+  .tela{position:relative;height:100%;display:grid;
+    grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:11vmin 12vmin;padding:2.4vmin}
+  .q{position:relative;min-width:0;min-height:0}
+  /* o canto virado pro centro ganha folga: a Pokebola encosta ali e nao pode tapar numero */
+  .q1 .card{padding-right:5.5vmin;padding-bottom:3.4vmin}
+  .q2 .card{padding-left:5.5vmin;padding-bottom:3.4vmin}
+  .q3 .card{padding-right:5.5vmin;padding-top:3.4vmin}
+  .q4 .card{padding-left:5.5vmin;padding-top:3.4vmin}
+
+  .card{position:relative;height:100%;display:flex;flex-direction:column;
+    border:1.5px solid var(--c);border-radius:2.2vmin;padding:2.2vmin 2.6vmin;
+    background:linear-gradient(160deg,var(--card),var(--card2));
+    box-shadow:0 0 3.4vmin color-mix(in srgb,var(--c) 26%,transparent),
+      inset 0 0 3vmin color-mix(in srgb,var(--c) 6%,transparent)}
+  /* cabeçalho: ícone redondo + título grande na cor + subtítulo */
+  .ch{display:flex;align-items:center;gap:1.6vmin;padding-bottom:1.6vmin;
+    border-bottom:1px solid rgba(255,255,255,.07)}
+  .cico{width:5.4vmin;height:5.4vmin;flex:none;border-radius:50%;display:grid;place-items:center;
+    border:2px solid var(--c);background:color-mix(in srgb,var(--c) 12%,transparent);
+    box-shadow:0 0 1.8vmin color-mix(in srgb,var(--c) 35%,transparent)}
+  .cico img{width:3.4vmin;height:3.4vmin;object-fit:contain;image-rendering:pixelated}
+  .cico span{font-size:2.6vmin;line-height:1;color:var(--c);font-weight:800}
+  .cht{min-width:0;flex:1}
+  .ct{font-family:'Cinzel',Georgia,serif;font-weight:800;font-size:3.1vmin;color:var(--c);
+    letter-spacing:.04em;line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    text-shadow:0 0 1.6vmin color-mix(in srgb,var(--c) 45%,transparent)}
+  .cs{font-size:1.5vmin;color:var(--muted);margin-top:.4vmin;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cb{flex:none;font-size:1.35vmin;font-weight:800;padding:.5em 1.1em;border-radius:99px;
     text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
-  .b-ok{color:#0c1a10;background:var(--good)} .b-warn{color:#1a1405;background:var(--mid)} .b-down{color:#fff;background:#e24b35}
-  /* As 5 linhas, grandes. Cada quadrante empurra o conteúdo pra sua borda EXTERNA — assim
-     o meio da tela fica livre e o card Total flutua sem cobrir número nenhum. */
-  .qrows{flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0;width:100%}
-  .quad.top .qrows{justify-content:flex-start;padding-top:1vh}
-  .quad.bot .qrows{justify-content:flex-end;padding-bottom:1vh}
-  /* nos quadrantes de baixo o cabeçalho vai pro rodapé: o topo deles é o meio da tela,
-     onde o card Total flutua — assim o nome da conta também fica na borda de fora */
-  .quad.bot{flex-direction:column-reverse}
-  .quad.bot .qh{border-bottom:0;border-top:1px solid var(--line-strong);
-    padding-bottom:0;padding-top:calc(1.4vh)}
-  /* --qw estreita as linhas quando as contas ficam lado a lado numa fileira só: aí elas
-     dividem a tela pelo meio, bem onde o card Total fica */
-  .quad.esq .qrows{width:var(--qw,86%);margin-right:auto}
-  .quad.dir .qrows{width:var(--qw,86%);margin-left:auto}
-  .qrow{display:flex;align-items:center;gap:calc(1.4vw);padding:calc(.9vh) 0;min-width:0}
-  .qrow+.qrow{border-top:1px solid rgba(216,138,74,.1)}
-  .qi{width:calc(3.4vh * var(--esc));height:calc(3.4vh * var(--esc));flex:none;display:grid;place-items:center}
-  .qi img{width:100%;height:100%;object-fit:contain;image-rendering:pixelated}
-  .qi span{font-size:calc(2.4vh * var(--esc));line-height:1;color:var(--gold)}
-  .ql{flex:1;min-width:0;font-weight:800;letter-spacing:.11em;text-transform:uppercase;
-    color:var(--muted);font-size:calc(1.75vh * var(--esc));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .qv{font-family:'Cinzel',serif;font-weight:800;color:var(--cream);font-variant-numeric:tabular-nums;
-    font-size:calc(3.2vh * var(--esc));line-height:1;white-space:nowrap;
-    text-shadow:0 2px 10px rgba(0,0,0,.6)}
-  .qrow.zero .qv{color:var(--bad)} .qrow.warn .qv{color:var(--mid)}
-  .qv.pos{color:var(--good)} .qv.neg{color:var(--bad)}
-  .qoff{flex:1;display:grid;place-items:center;color:var(--faint);font-style:italic;font-size:2vh}
+  .b-ok{color:#06210f;background:var(--verde)} .b-warn{color:#231703;background:var(--laranja)} .b-down{color:#fff;background:#e2483a}
 
-  /* ---- card TOTAL flutuando no centro, por cima dos quadrantes ---- */
-  .total{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:5;
-    width:min(34vw,380px);padding:1.1vh 1.3vw;border-radius:18px;
-    background:linear-gradient(160deg,rgba(34,20,17,.99),rgba(9,6,5,.99));
-    border:1px solid var(--gold);
-    box-shadow:0 0 0 1px rgba(229,179,79,.18), 0 26px 70px rgba(0,0,0,.85), 0 0 60px rgba(229,179,79,.06)}
-  /* cantos ornamentados, como as molduras do site */
-  .total::before,.total::after{content:"";position:absolute;width:16px;height:16px;pointer-events:none;
-    border-color:var(--gold);opacity:.75}
-  .total::before{top:5px;left:5px;border-top:2px solid;border-left:2px solid;border-top-left-radius:8px}
-  .total::after{bottom:5px;right:5px;border-bottom:2px solid;border-right:2px solid;border-bottom-right-radius:8px}
-  .th{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
-    padding-bottom:.9vh;border-bottom:1px solid var(--line-strong)}
-  .tt{font-family:'Cinzel',serif;font-weight:800;color:var(--gold);font-size:2.2vh;letter-spacing:.06em}
-  .ts{font-size:1.35vh;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--gold-soft)}
-  .trow{display:flex;align-items:center;gap:.9vw;padding:.75vh 0}
-  .trow+.trow{border-top:1px solid rgba(216,138,74,.1)}
-  .ti{width:2.5vh;height:2.5vh;flex:none;display:grid;place-items:center}
-  .ti img{width:100%;height:100%;object-fit:contain;image-rendering:pixelated}
-  .ti span{font-size:1.8vh;line-height:1;color:var(--gold)}
-  .tl{flex:1;min-width:0;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-size:1.4vh}
-  .tv{font-family:'Cinzel',serif;font-weight:800;color:var(--cream);font-size:2.3vh;
+  /* linhas: ícone + rótulo + valor na cor */
+  .rows{flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0}
+  .r{display:flex;align-items:center;gap:1.5vmin;padding:.85vmin 0}
+  .r+.r{border-top:1px solid rgba(255,255,255,.05)}
+  .ri{width:3.2vmin;height:3.2vmin;flex:none;display:grid;place-items:center}
+  .ri img{width:100%;height:100%;object-fit:contain;image-rendering:pixelated}
+  .ri span{font-size:2.2vmin;line-height:1;color:var(--c)}
+  .rl{flex:1;min-width:0;font-size:1.85vmin;color:var(--cream);font-weight:600;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rv{font-family:'Cinzel',serif;font-weight:800;font-size:2.5vmin;color:var(--c);
     font-variant-numeric:tabular-nums;white-space:nowrap}
-  .tv.pos{color:var(--good)} .tv.neg{color:var(--bad)}
-  .stamp{position:absolute;right:10px;bottom:8px;font-size:1.1vh;color:var(--faint);z-index:6}
+  .r.zero .rv{color:var(--bad)}
+
+  /* barra do rodapé do card */
+  .bar{margin-top:1.6vmin}
+  .track{height:1.1vmin;border-radius:1vmin;background:rgba(255,255,255,.07);overflow:hidden}
+  .fill{height:100%;border-radius:1vmin;background:var(--c);
+    box-shadow:0 0 1.4vmin color-mix(in srgb,var(--c) 60%,transparent);transition:width .5s ease}
+  .cap{margin-top:.8vmin;font-size:1.4vmin;color:var(--faint)}
+
+  /* perna: sai do canto interno do card e aponta pro centro */
+  .leg{position:absolute;width:5.2vmin;height:5.2vmin;pointer-events:none;border-color:var(--c);opacity:.85}
+  .q1 .leg{right:-5.2vmin;bottom:-5.2vmin;border-right:1.5px solid;border-bottom:1.5px solid;
+    border-bottom-right-radius:1.2vmin}
+  .q2 .leg{left:-5.2vmin;bottom:-5.2vmin;border-left:1.5px solid;border-bottom:1.5px solid;
+    border-bottom-left-radius:1.2vmin}
+  .q3 .leg{right:-5.2vmin;top:-5.2vmin;border-right:1.5px solid;border-top:1.5px solid;
+    border-top-right-radius:1.2vmin}
+  .q4 .leg{left:-5.2vmin;top:-5.2vmin;border-left:1.5px solid;border-top:1.5px solid;
+    border-top-left-radius:1.2vmin}
+
+  /* ---- Pokébola central ---- */
+  .bola{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:5;
+    width:25vmin;height:25vmin;border-radius:50%;border:.8vmin solid #14171d;
+    background:linear-gradient(180deg,#e0362b 0 calc(50% - .45vmin),#14171d calc(50% - .45vmin) calc(50% + .45vmin),#f4f6f8 calc(50% + .45vmin) 100%);
+    box-shadow:0 0 8vmin rgba(224,54,43,.34),0 2vmin 5vmin rgba(0,0,0,.75),
+      inset 0 -2vmin 4vmin rgba(0,0,0,.28),inset 0 2vmin 3vmin rgba(255,255,255,.14)}
+  .miolo{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:60%;height:60%;border-radius:50%;background:#f4f6f8;border:.8vmin solid #14171d;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.2vmin;
+    box-shadow:inset 0 .4vmin 1.2vmin rgba(0,0,0,.2)}
+  .mk{font-size:1.05vmin;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#5b6472}
+  .mv{font-family:'Cinzel',serif;font-weight:800;font-size:2.6vmin;line-height:1;color:#14171d}
+  .mv.neg{color:#c0392b}
+  .ms{font-size:1.02vmin;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7a8391}
   .vazio{position:absolute;inset:0;display:grid;place-items:center;color:var(--faint);font-style:italic}
+  .stamp{position:absolute;right:1.2vmin;bottom:1vmin;font-size:1.2vmin;color:var(--faint);z-index:6}
 </style>
 </head>
 <body>
-  <div class="grid" id="grid"></div>
-  <div id="total"></div>
+  <div class="tela" id="tela"></div>
+  <div id="centro"></div>
   <span class="stamp" id="stamp"></span>
 <script>
   const $ = (s)=>document.querySelector(s)
   const fmt = (n)=>Number(n||0).toLocaleString('pt-BR')
   const money = (n)=>(n<0?'-$':'$')+Math.abs(Number(n||0)).toLocaleString('pt-BR')
+  const curto = (n)=>{ n=Number(n||0); const s=n<0?'-':'+'; n=Math.abs(n)
+    if(n>=1e9) return s+'$'+(n/1e9).toFixed(1).replace('.',',')+'B'
+    if(n>=1e6) return s+'$'+(n/1e6).toFixed(1).replace('.',',')+'M'
+    if(n>=1e3) return s+'$'+(n/1e3).toFixed(1).replace('.',',')+'k'
+    return s+'$'+n }
   const esc = (s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
+  const GAME = 'https://poke.idleworld.online'
+  const DEX = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/'
+  const url = (s)=> !s ? null : (/^(https?:|data:)/.test(s) ? s : (s.charAt(0)==='/' ? GAME+s : GAME+'/assets/items/'+s))
+  const ehImg = (s)=> !!s && (/^(https?:|data:)/.test(s) || s.indexOf('/')>=0)
+  const ico = (s)=> ehImg(s) ? '<img src="'+esc(url(s))+'" alt="">' : '<span>'+(s||'')+'</span>'
+  const POKE = GAME+'/assets/markitems/pokeball.png'
+  const BACK = { potion: GAME+'/assets/markitems/ultra_potion.png', revive: GAME+'/assets/markitems/revive.png' }
   const namesMap = ()=>{ try{ return JSON.parse(localStorage.getItem('pml_names')||'{}') }catch{ return {} } }
   const nameOf = (n)=>namesMap()[n]||('Conta '+n)
   const lowBall = ()=>parseInt(localStorage.getItem('pml_lowball')||'500')||500
-  const POKE = 'https://poke.idleworld.online/assets/markitems/pokeball.png'
-  const BACK = { potion:'https://poke.idleworld.online/assets/markitems/ultra_potion.png',
-    revive:'https://poke.idleworld.online/assets/markitems/revive.png' }
-  const LEND = 1.7   // "Lendário" = qualidade >= 1,7 (tier Lendária da tabela do jogo)
+  const LEND = 1.7   // "Lendário" = qualidade >= 1,7 (tier Lendária do jogo)
   const lendarios = (st)=>{ const c=st&&st.live&&st.live.catches; return Array.isArray(c)?c.filter(x=>(x.quality||0)>=LEND).length:0 }
   const spriteDe = (lista,cat)=>{ if(!Array.isArray(lista))return null
     const c=lista.filter(x=>x.tipo===cat&&x.icon).sort((a,b)=>b.qty-a.qty)[0]; return c?c.icon:null }
+  const CORES = ['var(--azul)','var(--verde)','var(--roxo)','var(--laranja)']
 
   function alertOf (st){
-    if(!st||st.ok===false) return { cls:'down', badge:'b-down', txt:'Off' }
-    if(st.live&&st.live.offline) return { cls:'down', badge:'b-down', txt:'Caiu' }
+    if(!st||st.ok===false) return { badge:'b-down', txt:'Off' }
+    if(st.live&&st.live.offline) return { badge:'b-down', txt:'Caiu' }
     if(st.balls&&Object.keys(st.balls).length){
-      if(st.ballsTotal===0) return { cls:'down', badge:'b-down', txt:'Sem bolas' }
-      if(st.ballsTotal<lowBall()) return { cls:'warn', badge:'b-warn', txt:'Bolas' }
+      if(st.ballsTotal===0) return { badge:'b-down', txt:'Sem bolas' }
+      if(st.ballsTotal<lowBall()) return { badge:'b-warn', txt:'Bolas' }
     }
-    if(!st.hunt||!st.hunt.seen) return { cls:'warn', badge:'b-warn', txt:'Fora' }
-    return { cls:'', badge:'b-ok', txt:'Hunt' }
+    if(!st.hunt||!st.hunt.seen) return { badge:'b-warn', txt:'Fora' }
+    return { badge:'b-ok', txt:'Hunt' }
   }
-  // o catálogo do jogo manda ícone RELATIVO ("/assets/markitems/ultraball.png") — sem
-  // resolver, a URL era impressa como texto por cima do rótulo
-  const GAME = 'https://poke.idleworld.online'
-  const url = (s)=> !s ? null : (/^(https?:|data:)/.test(s) ? s : (s.charAt(0)==='/' ? GAME+s : GAME+'/assets/items/'+s))
-  const ehImg = (s)=> !!s && (/^(https?:|data:)/.test(s) || s.indexOf('/')>=0 || /\.(png|gif|webp|jpe?g)$/i.test(s))
-  const ico = (src)=> ehImg(src) ? '<img src="'+esc(url(src))+'" alt="">' : '<span>'+(src||'')+'</span>'
-  const linhaQ = (src,lbl,val,cls)=>'<div class="qrow '+(cls||'')+'"><span class="qi">'+ico(src)+'</span>'+
-    '<span class="ql">'+lbl+'</span><span class="qv">'+val+'</span></div>'
+  const linha = (src,lbl,val,cls)=>'<div class="r '+(cls||'')+'"><span class="ri">'+ico(src)+'</span>'+
+    '<span class="rl">'+lbl+'</span><span class="rv">'+val+'</span></div>'
 
-  function quadrante (r, i, cols, lins){
-    const st=r.state, a=alertOf(st), nm=nameOf(r.num)
-    // de que lado do centro este quadrante está (pra jogar o conteúdo pra borda de fora)
-    const col=i%cols, lin=Math.floor(i/cols), lado=[]
-    if(cols>1) lado.push(col < cols/2 ? 'esq' : 'dir')
-    if(lins>1) lado.push(lin < lins/2 ? 'top' : 'bot')
-    let corpo
-    if(!st||st.ok===false) corpo='<div class="qoff">sem resposta</div>'
-    else {
-      const pot=spriteDe(st.cura,'heal')||BACK.potion, rev=spriteDe(st.cura,'revive')||BACK.revive
-      const bola=(st.ballList&&st.ballList.length&&st.ballList[0].icon)||POKE
-      const saldo=st.fin&&st.fin.saldo
-      corpo='<div class="qrows">'+
-        linhaQ(bola,'Pokébola',fmt(st.ballsTotal||0), st.ballsTotal===0?'zero':(st.ballsTotal<lowBall()?'warn':''))+
-        linhaQ(pot,'Potion',st.potions!=null?fmt(st.potions):'—', st.potions===0?'zero':'')+
-        linhaQ(rev,'Revive',st.revives!=null?fmt(st.revives):'—', st.revives===0?'zero':'')+
-        linhaQ('★','Lendários',fmt(lendarios(st)))+
-        linhaQ('$','Profit',saldo!=null?'<span class="qv '+(saldo<0?'neg':'pos')+'">'+(saldo<0?'':'+')+money(saldo)+'</span>':'—')+
-      '</div>'
+  function cardConta (r, i){
+    const st=r.state, a=alertOf(st), cor=CORES[i%4]
+    if(!st||st.ok===false){
+      return '<div class="card" style="--c:'+cor+'"><div class="ch"><span class="cico"><span>?</span></span>'+
+        '<span class="cht"><div class="ct">'+esc(nameOf(r.num))+'</div><div class="cs">sem resposta</div></span>'+
+        '<span class="cb '+a.badge+'">'+a.txt+'</span></div>'+
+        '<div class="rows"><div class="vazio">jogo não respondeu</div></div></div><span class="leg"></span>'
     }
-    return '<div class="quad '+a.cls+' '+lado.join(' ')+'"><div class="qh"><span class="qn">'+esc(nm)+'</span>'+
-      '<span class="qb '+a.badge+'">'+a.txt+'</span></div>'+corpo+'</div>'
+    const lid=st.lider, dex=lid&&lid.speciesId
+    const bola=(st.ballList&&st.ballList.length&&st.ballList[0].icon)||POKE
+    const pot=spriteDe(st.cura,'heal')||BACK.potion, rev=spriteDe(st.cura,'revive')||BACK.revive
+    const saldo=st.fin&&st.fin.saldo
+    // barra = HP do time (o WS dá o do líder)
+    const hp=(lid&&lid.hp!=null)?lid.hp:st.hp, hpMax=(lid&&lid.maxHp)||st.hpMax
+    const pct=(hp!=null&&hpMax)?Math.max(0,Math.min(100,hp/hpMax*100)):null
+    const sub=[]; if(lid&&lid.name)sub.push((lid.shiny?'★ ':'')+lid.name+(lid.level?' nv '+lid.level:''))
+    if(st.zone)sub.push(st.zone)
+    return '<div class="card" style="--c:'+cor+'">'+
+      '<div class="ch"><span class="cico">'+(dex?'<img src="'+DEX+dex+'.png" alt="">':'<span>◉</span>')+'</span>'+
+        '<span class="cht"><div class="ct">'+esc(nameOf(r.num))+'</div>'+
+        '<div class="cs">'+(sub.length?esc(sub.join(' · ')):'aguardando dados')+'</div></span>'+
+        '<span class="cb '+a.badge+'">'+a.txt+'</span></div>'+
+      '<div class="rows">'+
+        linha(bola,'Pokébola',fmt(st.ballsTotal||0), st.ballsTotal===0?'zero':'')+
+        linha(pot,'Potion',st.potions!=null?fmt(st.potions):'—', st.potions===0?'zero':'')+
+        linha(rev,'Revive',st.revives!=null?fmt(st.revives):'—', st.revives===0?'zero':'')+
+        linha('★','Lendários',fmt(lendarios(st)))+
+        linha('$','Profit',saldo!=null?curto(saldo):'—')+
+      '</div>'+
+      (pct!=null?'<div class="bar"><div class="track"><div class="fill" style="width:'+pct.toFixed(0)+'%"></div></div>'+
+        '<div class="cap">HP do time · '+fmt(hp)+' / '+fmt(hpMax)+'</div></div>':'')+
+      '</div><span class="leg"></span>'
   }
 
-  function cardTotal (rows){
-    let bolas=0,pot=0,rev=0,lend=0,profit=0,temPot=false,temRev=false,temProfit=false,pico=null,rico=null
-    rows.forEach(r=>{ const st=r.state; if(!st||st.ok===false)return
-      bolas+=st.ballsTotal||0
-      if(st.potions!=null){ pot+=st.potions; temPot=true; if(!pico)pico=spriteDe(st.cura,'heal') }
-      if(st.revives!=null){ rev+=st.revives; temRev=true; if(!rico)rico=spriteDe(st.cura,'revive') }
-      lend+=lendarios(st)
-      if(st.fin&&st.fin.saldo!=null){ profit+=st.fin.saldo; temProfit=true } })
+  function bolaCentral (rows){
+    let profit=0, temProfit=false
+    rows.forEach(r=>{ const st=r.state
+      if(st&&st.fin&&st.fin.saldo!=null){ profit+=st.fin.saldo; temProfit=true } })
     const vivas=rows.filter(r=>alertOf(r.state).badge==='b-ok').length
-    const li=(src,lbl,val,cls)=>'<div class="trow"><span class="ti">'+ico(src)+'</span>'+
-      '<span class="tl">'+lbl+'</span><span class="tv '+(cls||'')+'">'+val+'</span></div>'
-    return '<div class="total"><div class="th"><span class="tt">Total</span>'+
-      '<span class="ts">'+vivas+'/'+rows.length+' na hunt</span></div>'+
-      li(POKE,'Pokébolas',fmt(bolas))+
-      li(pico||BACK.potion,'Potions',temPot?fmt(pot):'—')+
-      li(rico||BACK.revive,'Revives',temRev?fmt(rev):'—')+
-      li('★','Lendários',fmt(lend))+
-      li('$','Profit total',temProfit?(profit<0?'':'+')+money(profit):'—',temProfit?(profit<0?'neg':'pos'):'')+
-      '</div>'
+    return '<div class="bola"><div class="miolo">'+
+      '<span class="mk">Total geral</span>'+
+      '<span class="mv'+(temProfit&&profit<0?' neg':'')+'">'+(temProfit?curto(profit):'—')+'</span>'+
+      '<span class="ms">'+vivas+'/'+rows.length+' na hunt</span></div></div>'
   }
 
   async function refresh (){
     try{
       const r=await window.ml.readDashboard()
-      const grid=$('#grid')
+      const tela=$('#tela')
       if(!r||!r.results||!r.results.length){
-        grid.innerHTML='<div class="vazio">Nenhuma conta aberta.</div>'; $('#total').innerHTML=''; return }
-      const rows=r.results, n=rows.length
-      // a grade acompanha as telas: 2 lado a lado, 3 e 4 em 2x2 (com 3, o último ocupa a
-      // linha de baixo inteira — nunca deixa uma conta bem embaixo do card Total)
-      const cols=n<=1?1:2, lins=Math.ceil(n/cols)
-      grid.style.gridTemplateColumns='repeat('+cols+',1fr)'
-      grid.style.gridTemplateRows='repeat('+lins+',1fr)'
-      grid.style.setProperty('--esc', n<=1?1.7:(n<=2?1.3:1))
-      grid.style.setProperty('--qw', lins===1&&cols>1 ? '66%' : '86%')
-      grid.innerHTML=rows.map((r2,i)=>quadrante(r2,i,cols,lins)).join('')
-      if(n===3) grid.lastElementChild.style.gridColumn='1 / -1'
-      // com uma conta só não faz sentido um card de total flutuando por cima
-      $('#total').innerHTML = n>1 ? cardTotal(rows) : ''
+        tela.innerHTML='<div class="vazio">Nenhuma conta aberta.</div>'; $('#centro').innerHTML=''; return }
+      const rows=r.results.slice(0,4)
+      // sempre 4 posições (q1..q4): cada conta num canto, apontando pro centro
+      tela.innerHTML = [0,1,2,3].map(i=>{
+        const row=rows[i]
+        return '<div class="q q'+(i+1)+'">'+(row?cardConta(row,i):'')+'</div>'
+      }).join('')
+      $('#centro').innerHTML = bolaCentral(rows)
       const d=new Date(); $('#stamp').textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0')
-    }catch(e){ $('#grid').innerHTML='<div class="vazio">Erro: '+esc(e.message)+'</div>' }
+    }catch(e){ $('#tela').innerHTML='<div class="vazio">Erro: '+esc(e.message)+'</div>' }
   }
   window.__refresh=refresh
-  // so varre as contas com o modo Estatísticas LIGADO (main-lite seta window.__vpActive)
+  // só varre as contas com o modo Estatísticas LIGADO (main-lite seta window.__vpActive)
   setInterval(()=>{ if(window.__vpActive) refresh() },2500)
   if(window.__vpActive) refresh()
 </script>
