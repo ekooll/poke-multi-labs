@@ -190,6 +190,14 @@
     V.cura = cura.sort((a, b) => b.qty - a.qty);        // com nome e icone REAL do jogo
     V.rareItems = raros.sort((a, b) => b.qty - a.qty).slice(0, 12);
   };
+  // id do "Rare Pokémon Picture" no catalogo do jogo. Procura pelo NOME (id pode mudar em
+  // atualizacao) e so cai no 59195 conhecido se o catalogo ainda nao tiver carregado.
+  const idDaFoto = () => {
+    if (P.items) for (const k in P.items) {
+      if (/rare\s*pok.?mon\s*picture/i.test(P.items[k].name || '')) return +k;
+    }
+    return 59195;
+  };
   const RARE = /ferom|pheromone|strange|foto|photo|picture/i;
   const addRare = (tag) => { if (V.rareDrops.indexOf(tag) === -1) { V.rareDrops.push(tag); if (V.rareDrops.length > 12) V.rareDrops.shift(); } };
   // DROPS DA SESSAO, como o painel do jogo: sprite + nome + xN + valor. O `analyzer` so
@@ -330,11 +338,23 @@
           if (!V.bestCatch || (p.quality||0) > (V.bestCatch.quality||0)) V.bestCatch = { name:p.name, quality:p.quality, ivTotal:p.ivTotal };
           break;
         }
-        case 'profession-photo':  // fotografou shiny na hunt: `pictures` = total (autoridade)
+        case 'profession-photo': {  // fotografou shiny na hunt: `pictures` = total (autoridade)
+          const antes = V.photos || 0;
           if (m.pictures != null) V.photos = m.pictures;
           else if (m.ok) V.photos++;
+          // A FOTO E UM ITEM DE LOOT e entra no Saldo do jogo, mas NAO chega em
+          // field-kill.loot — vem so por aqui. Sem isso o Profit ignorava a foto: no teste
+          // de 22/07 o jogo marcou Saldo +54.079 (4.162 de loot - 1.960 de supply + 51.877
+          // da foto) enquanto o card mostrava +1.588. Somando como item, ela tambem aparece
+          // na lista de drops da sessao, igual no painel do jogo.
+          const ganhou = (m.pictures != null) ? (V.photos > antes) : !!m.ok;
+          if (ganhou) {
+            const id = idDaFoto();
+            if (id != null) { P.lootById[id] = (P.lootById[id] || 0) + 1; drops(); }
+          }
           if (m.ok) addRare('📸 Foto de shiny');
           break;
+        }
         case 'analyzer':          // stats OFICIAIS da sessao (~90s) — mesmos numeros do painel
           V.an = { kills:m.kills, seconds:m.seconds, xp:m.xpGained, lootGold:m.lootGold, lootItems:m.lootItems,
             ballsUsed:m.ballsUsed, potionsUsed:m.potionsUsed, captures:m.captures, shinyCaptures:m.shinyCaptures,
