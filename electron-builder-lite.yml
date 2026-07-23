@@ -24,6 +24,9 @@ files:
   - renderer/logo-vp.png
   - renderer/logo-vp.ico
   - renderer/assets/**/*
+  # OBRIGATORIO: as 6 telas usam ./fonts/fonts.css (Inter/Cinzel locais). Sem esta linha
+  # o portable sai com a fonte do sistema e o visual quebra - e so no exe, nao no dev.
+  - renderer/fonts/**/*
   - node_modules/ws/**/*
 win:
   target: portable
