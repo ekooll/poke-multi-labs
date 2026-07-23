@@ -93,6 +93,12 @@
   .hero .hb{position:relative;z-index:2;flex:none;font-size:10px;font-weight:800;padding:5px 11px;
     border-radius:99px;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
   .b-ok{color:#0c1a10;background:var(--good)} .b-warn{color:#1a1405;background:var(--mid)} .b-down{color:#fff;background:var(--red-2)}
+  /* lixeira do dashboard: discreta, ao lado do badge; acende no hover (destrutiva, nao chama atencao a toa) */
+  .hero .zerar{position:relative;z-index:2;flex:none;margin-left:8px;width:30px;height:30px;
+    background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:9px;color:var(--faint);
+    font-size:14px;cursor:pointer;transition:color .16s var(--ease),border-color .16s var(--ease),background .16s var(--ease)}
+  .hero .zerar:hover{color:#fff;border-color:var(--red-2);background:rgba(194,54,41,.18)}
+  .hero .zerar:disabled{opacity:.4;cursor:default}
 
   /* ---------- cards (Modelo 1) ---------- */
   .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(146px,1fr));gap:9px}
@@ -264,7 +270,12 @@
   const TCOL = { 'Épica':'#b07bd8','Lendária':'#e5b34f','Mítica':'#ff6bd0','Anciã':'#ff8f3d','Divina':'#5fe0e0','Rara':'#5b9be6','Incomum':'#5fd38a','Comum':'#c9c9c9','Fraca':'#8a8f97' }
   const mult = (q)=> q==null ? '' : '×'+Number(q).toFixed(3).replace('.',',')
   const LEND = 1.7   // "Lendário" = qualidade ≥ 1,7 (tier Lendária do jogo)
-  const lendarios = (st)=>{ const c=st&&st.live&&st.live.catches; return Array.isArray(c)?c.filter(x=>(x.quality||0)>=LEND).length:0 }
+  // SO as capturas DESTA sessao (ts >= sessTs), igual o card. `catches` e' historico e nao
+  // zera na troca de hunt — sem o filtro, "Lendários" contava a vida inteira e nao zerava na
+  // lixeira. Captura antiga sem `ts` (gravada antes desta versao) fica so no historico.
+  const capsSessao = (st)=>{ const c=st&&st.live&&st.live.catches; if(!Array.isArray(c))return []
+    const t0=st.live.sessTs; return t0?c.filter(x=>x&&x.ts&&x.ts>=t0):c }
+  const lendarios = (st)=> capsSessao(st).filter(x=>(x.quality||0)>=LEND).length
   const spriteDe = (lista,cat)=>{ if(!Array.isArray(lista))return null
     const c=lista.filter(x=>x.tipo===cat&&x.icon).sort((a,b)=>b.qty-a.qty)[0]; return c?c.icon:null }
 
@@ -281,7 +292,15 @@
   function alertOf (st){
     if(!st || st.ok===false) return { cls:'down', badge:'b-down', txt:'Off' }
     if(st.live && st.live.offline) return { cls:'down', badge:'b-down', txt:'Caiu' }
-    if(st.balls && Object.keys(st.balls).length){
+    // ALERTA PELA BOLA DA HUNT (st.ballAtiva), nao pelo total. Olhar o total deixava a conta
+    // verde com a Ultra Ball zerada e milhares de Poke Ball encalhadas — parava de capturar e o
+    // painel dizia que estava tudo bem. Mesmo fix que o card ganhou em 23/07. Sem ballAtiva
+    // (leitor antigo), cai no total.
+    const ba = st.ballAtiva
+    if(ba){
+      if((ba.qty||0)===0) return { cls:'down', badge:'b-down', txt:'Sem '+(ba.name||'bola') }
+      if((ba.qty||0)<LOW) return { cls:'warn', badge:'b-warn', txt:(ba.name||'Bolas') }
+    } else if(st.balls && Object.keys(st.balls).length){
       if(st.ballsTotal===0) return { cls:'down', badge:'b-down', txt:'Sem bolas' }
       if(st.ballsTotal<LOW) return { cls:'warn', badge:'b-warn', txt:'Bolas' }
     }
@@ -331,12 +350,18 @@
       const li=(v,lbl,det,cls)=>'<div class="lin '+(cls||'')+'"><span class="ll">'+lbl+(det?' <em>'+esc(det)+'</em>':'')+'</span><span class="lv">'+v+'</span></div>'
       let b=li('+'+money(F.loot),'Loot',F.lootItens?fmt(F.lootItens)+' itens':'','pos')
       if(F.capturas) b+=li('+'+money(F.capturas),'Capturas','','pos')
+      // FOTO DE SHINY: entra no Saldo mas o jogo NAO conta no Loot (medido 23/07). Sem essa
+      // linha o total (que ja inclui a foto) nao fechava com Loot+Capturas−Supply. E' preco de
+      // MERCADO (a unica linha que nao e' NPC), entao vai marcada.
+      if(F.foto) b+=li('+'+money(F.foto),'Foto de shiny',(F.fotos?fmt(F.fotos)+(F.fotos>1?' fotos':' foto'):'')+' · mercado','pos')
       if(F.supply!=null) b+=li('−'+money(Math.abs(F.supply)),'Supply',
         [F.bolas?fmt(F.bolas)+' bolas':'',F.potions?fmt(F.potions)+' potions':'',
          F.supplyParcial?'sem preço no catálogo':''].filter(Boolean).join(' · '),'neg')
+      // rotulo do total: cita a foto so quando ela existe, senao continua "Loot + Capturas − Supply"
+      const rotTot = F.foto ? 'Loot + Capturas + Foto − Supply' : 'Loot + Capturas − Supply'
       h+='<section class="box"><div class="bh"><span class="bt">Saldo da hunt</span>'+
         (F.fonte==='vivo'?'<span class="bv est">ao vivo · preço de NPC</span>':(F.aprox?'<span class="bv est">estimado</span>':''))+'</div><div class="linhas">'+b+'</div>'+
-        (F.saldo!=null?'<div class="tot"><span>Loot + Capturas − Supply</span><b class="'+(F.saldo<0?'neg':'pos')+'">'+
+        (F.saldo!=null?'<div class="tot"><span>'+rotTot+'</span><b class="'+(F.saldo<0?'neg':'pos')+'">'+
           (F.saldo<0?'':'+')+money(F.saldo)+'</b></div>':'')+
         (F.cashH!=null?'<div class="ph2"><span>por hora</span><b>'+(F.cashH<0?'':'+')+money(F.cashH)+'/h</b></div>':'')+'</section>'
     }
@@ -361,18 +386,19 @@
     // bolas e cura, com o sprite do jogo
     const item=(src,qty,nome,extra,ic)=>'<span class="item'+(qty===0?' zero':'')+(extra||'')+'" title="'+esc(nome)+'">'+
       (src?'<img class="'+(ic||'')+'" src="'+esc(url(src))+'" alt="">':'<small>'+esc(nome)+'</small>')+fmt(qty)+'</span>'
-    // SO O ESSENCIAL: a bola de maior quantidade + a Idle Ball (sempre, mesmo zerada — e' a
-    // que o auto-catch queima). O total do cabecalho continua somando TODOS os tipos.
-    let bolas='', escondidas=0
+    // O dashboard e' o painel COMPLETO: mostra TODOS os tipos de bola, mas com a que a hunt
+    // GASTA (st.ballAtiva) em primeiro e marcada "em uso". Antes mostrava so a maior por
+    // QUANTIDADE + a Idle — no Vileplume isso punha a Poke Ball (9.185, parada) na frente da
+    // Ultra Ball (a que sustenta a caca). Mesma correcao do card em 23/07: quem manda no
+    // destaque e no alerta e' a bola usada, nao a mais numerosa.
+    let bolas=''
     if(Array.isArray(st.ballList)&&st.ballList.length){
-      const lista=st.ballList                      // ja vem ordenada por quantidade (cdp.js)
-      const idle=lista.filter(b=>b.idle), maior=lista.filter(b=>!b.idle).slice(0,1)
-      const ver=(maior.concat(idle)).length?maior.concat(idle):lista.slice(0,1)
-      escondidas=lista.length-ver.length
-      ver.forEach(b=>{ bolas+=item(b.icon||BALL_ICON[b.key],b.qty,b.name,'',b.idle?'idle':'') })
+      const ativa=st.ballAtiva||st.ballList[0]
+      const ordem=st.ballList.slice().sort((a,b)=> a===ativa?-1 : b===ativa?1 : (b.qty||0)-(a.qty||0))
+      ordem.forEach(b=>{ bolas+=item(b.icon||BALL_ICON[b.key], b.qty, b.name+(b===ativa?' (em uso)':''),
+        b===ativa?' uso':'', b.idle?'idle':'') })
     } else { const bl=st.balls||{}; BALL_ORDER.forEach(x=>{ if(bl[x]!=null) bolas+=item(BALL_ICON[x],bl[x],BALL_LABELS[x]||x,'',x==='idle'?'idle':'') }) }
-    if(bolas) h+='<div class="sec"><div class="sech">Bolas <em>'+fmt(st.ballsTotal||0)+' no total'+
-      (escondidas>0?' · +'+escondidas+' tipo'+(escondidas>1?'s':''):'')+'</em></div><div class="items">'+bolas+'</div></div>'
+    if(bolas) h+='<div class="sec"><div class="sech">Bolas <em>'+fmt(st.ballsTotal||0)+' no total</em></div><div class="items">'+bolas+'</div></div>'
     if(Array.isArray(st.cura)&&st.cura.length){
       const its=st.cura.map(p=>item(p.icon,p.qty,p.name,p.name===st.usando?' uso':'')).join('')
       h+='<div class="sec"><div class="sech">Cura <em>'+
@@ -476,9 +502,15 @@
           '" onerror="this.onerror=null;this.src=\''+spritePng(dex)+'\'" alt="">':'')+
         '<div class="hinfo"><h2>'+esc(nameOf(r.num))+'</h2>'+
         '<p>'+(sub.length?esc(sub.join('  ·  ')):'acompanhe o progresso na hunt')+'</p></div>'+
-        '<span class="hb '+a.badge+'">'+a.txt+'</span></div>' + painelConta(st)
+        '<span class="hb '+a.badge+'">'+a.txt+'</span>'+
+        // lixeira propria do dashboard: zera a sessao DESTA conta (mesmo `cardReset`/__vpReset
+        // que a lixeira do card). O painel do jogo nao zera junto — ver a ancora no analyzer.
+        '<button class="zerar" id="zerar" data-num="'+r.num+'" title="Zerar as estatísticas desta conta (o mesmo que o jogo faz ao trocar de hunt)">🗑</button>'+
+        '</div>' + painelConta(st)
       const cf=$('#capfilter')
       if(cf) cf.onchange=()=>{ capFilter=cf.value; localStorage.setItem('pml_capfilter',capFilter); render(ultimas) }
+      const zb=$('#zerar')
+      if(zb) zb.onclick=async ()=>{ zb.disabled=true; try{ await window.ml.cardReset(parseInt(zb.dataset.num,10)) }catch(e){}; refresh() }
     }
     const vivas=rows.filter(r=>alertOf(r.state).badge==='b-ok').length
     $('#status').classList.toggle('off',vivas===0)

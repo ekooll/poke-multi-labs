@@ -124,7 +124,11 @@
   const nameOf = (n)=>namesMap()[n]||('Conta '+n)
   const lowBall = ()=>parseInt(localStorage.getItem('pml_lowball')||'500')||500
   const LEND = 1.7   // "Lendário" = qualidade >= 1,7 (tier Lendária do jogo)
-  const lendarios = (st)=>{ const c=st&&st.live&&st.live.catches; return Array.isArray(c)?c.filter(x=>(x.quality||0)>=LEND).length:0 }
+  // SO as capturas DESTA sessao (ts >= sessTs), igual o card e o dashboard — senao "Lendários"
+  // conta a vida inteira e nao zera na troca de hunt/lixeira.
+  const capsSessao = (st)=>{ const c=st&&st.live&&st.live.catches; if(!Array.isArray(c))return []
+    const t0=st.live.sessTs; return t0?c.filter(x=>x&&x.ts&&x.ts>=t0):c }
+  const lendarios = (st)=> capsSessao(st).filter(x=>(x.quality||0)>=LEND).length
   const spriteDe = (lista,cat)=>{ if(!Array.isArray(lista))return null
     const c=lista.filter(x=>x.tipo===cat&&x.icon).sort((a,b)=>b.qty-a.qty)[0]; return c?c.icon:null }
   const CORES = ['var(--azul)','var(--verde)','var(--roxo)','var(--laranja)']
@@ -132,7 +136,12 @@
   function alertOf (st){
     if(!st||st.ok===false) return { badge:'b-down', txt:'Off' }
     if(st.live&&st.live.offline) return { badge:'b-down', txt:'Caiu' }
-    if(st.balls&&Object.keys(st.balls).length){
+    // alerta pela bola da hunt (st.ballAtiva), nao pelo total — mesmo fix do card/dashboard
+    const ba=st.ballAtiva
+    if(ba){
+      if((ba.qty||0)===0) return { badge:'b-down', txt:'Sem '+(ba.name||'bola') }
+      if((ba.qty||0)<lowBall()) return { badge:'b-warn', txt:(ba.name||'Bolas') }
+    } else if(st.balls&&Object.keys(st.balls).length){
       if(st.ballsTotal===0) return { badge:'b-down', txt:'Sem bolas' }
       if(st.ballsTotal<lowBall()) return { badge:'b-warn', txt:'Bolas' }
     }
@@ -151,7 +160,13 @@
         '<div class="rows"><div class="vazio">jogo não respondeu</div></div></div><span class="leg"></span>'
     }
     const lid=st.lider, dex=lid&&lid.speciesId
-    const bola=(st.ballList&&st.ballList.length&&st.ballList[0].icon)||POKE
+    // BOLA DA HUNT (a que gasta), nao a soma de todos os tipos. O grid e' compacto (1 linha por
+    // metrica), entao aqui a linha mostra a bola ATIVA com o numero DELA — nao os 20k inflados
+    // que a soma dava no Vileplume. Mesmo criterio do card/dashboard.
+    const ativa=(st.ballAtiva)||(st.ballList&&st.ballList.length?st.ballList[0]:null)
+    const bola=(ativa&&ativa.icon)||POKE
+    const bolaLbl=(ativa&&ativa.name)||'Pokébola'
+    const bolaQtd=ativa?(ativa.qty||0):(st.ballsTotal||0)
     const pot=spriteDe(st.cura,'heal')||BACK.potion, rev=spriteDe(st.cura,'revive')||BACK.revive
     const saldo=st.fin&&st.fin.saldo
     // barra = HP do time (o WS dá o do líder)
@@ -165,7 +180,7 @@
         '<div class="cs">'+(sub.length?esc(sub.join(' · ')):'aguardando dados')+'</div></span>'+
         '<span class="cb '+a.badge+'">'+a.txt+'</span></div>'+
       '<div class="rows">'+
-        linha(bola,'Pokébola',fmt(st.ballsTotal||0), st.ballsTotal===0?'zero':'')+
+        linha(bola,bolaLbl,fmt(bolaQtd), bolaQtd===0?'zero':(bolaQtd<lowBall()?'warn':''))+
         linha(pot,'Potion',st.potions!=null?fmt(st.potions):'—', st.potions===0?'zero':'')+
         linha(rev,'Revive',st.revives!=null?fmt(st.revives):'—', st.revives===0?'zero':'')+
         linha('★','Lendários',fmt(lendarios(st)))+

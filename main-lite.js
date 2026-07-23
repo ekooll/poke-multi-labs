@@ -15,6 +15,12 @@ const cdp = require('./cdp.js');
 process.on('uncaughtException', (e) => console.error('[lite] FATAL', e && e.stack || e));
 // pasta de dados propria (isola cache/login; evita colisao com outros Electron)
 app.setPath('userData', path.join(app.getPath('appData'), 'VpertsMultiLite'));
+// PORTA DE DEBUG (so 127.0.0.1). O modo Leve roda o jogo dentro do proprio Electron, entao
+// nao existia porta nenhuma — e o coletor de conferencia (_coleta/coletor.js), que compara o
+// nosso card com o Hunt Analyzer do jogo, ficava logando "app fechado" pra sempre, calado.
+// Mesma porta base do host (9333) pra a ferramenta achar nos dois modos.
+app.commandLine.appendSwitch('remote-debugging-port', '9333');
+app.commandLine.appendSwitch('remote-allow-origins', '*');
 
 const GAME = 'https://poke.idleworld.online';
 const LOGIN = GAME + '/login';

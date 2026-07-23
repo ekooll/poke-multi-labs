@@ -96,7 +96,14 @@ function _stateFn () {
           lastCatch: w.lastCatch, bestCatch: w.bestCatch, catches: w.catches, rareDrops: w.rareDrops,
           potions: w.potions, revives: w.revives, rareItems: w.rareItems, cura: w.cura, usando: w.usando,
           drops: w.drops, lootGold: w.lootGold, lootItems: w.lootItems, capturesGold: w.capturesGold, ballsUsed: w.ballsUsed,
-          supplyGold: w.supplyGold, potionsUsed: w.potionsUsed, anTs: w.anTs,
+          supplyGold: w.supplyGold, potionsUsed: w.potionsUsed, revivesUsed: w.revivesUsed, anTs: w.anTs,
+          // ATENCAO: esta copia e' LISTA BRANCA — campo que nao estiver aqui NAO chega na UI,
+          // calado. Foi o que segurou a correcao da lixeira: o card caia no fallback "sem
+          // sessTs = mostra tudo" e seguia contando o lendario da sessao anterior.
+          // sessTs = marco da sessao (corta as capturas do card) · fotoGold/fotosSess = foto de
+          // shiny, que entra no Saldo e nao no Loot · anSync = ultima reconciliacao.
+          sessTs: w.sessTs, fotoGold: w.fotoGold, fotosSess: w.fotosSess, anSync: w.anSync,
+          ballsUsedById: w.ballsUsedById,   // qual bola a hunt esta REALMENTE gastando
           lider: w.lider, huntMob: w.huntMob,   // huntMob = pokemon da hunt (icone do card)
           ballCounts: w.ballCounts, ballCatalog: w.ballCatalog, msgs: w.msgs, startTs: w.startTs,
           lastMsgTs: w.lastMsgTs, lastKillTs: w.lastKillTs, lastFieldTs: w.lastFieldTs,
@@ -219,8 +226,21 @@ function _stateFn () {
       // por QUANTIDADE (maior primeiro): a UI mostra so a maior + a idle, e o icone do
       // card passa a ser o da bola que a conta realmente esta usando
       if (ballList.length) { finalBalls = wb; ballList.sort((a, b) => (b.qty || 0) - (a.qty || 0)) }
+      // QUAL BOLA A HUNT GASTA. MEDIDO 23/07/2026: as 3 contas so consomem Ultra Ball, mas
+      // tinham 9.185 Poke Ball / 1.595 Idle paradas no estoque. Somar tudo numa linha so dava
+      // "20.051 bolas" no card do Vileplume quando o que sustenta a hunt eram 10.866 — e pior,
+      // o alerta de "acabando" olhava o TOTAL: a conta podia zerar a Ultra Ball, parar de
+      // capturar, e o card seguir mostrando nove mil bolas em branco, sem aviso nenhum.
+      const usadas = live.ballsUsedById || null
+      if (usadas) {
+        let topo = null, topoN = 0
+        for (const id in usadas) { if ((usadas[id] || 0) > topoN) { topoN = usadas[id]; topo = id } }
+        if (topo != null) ballList.forEach(b => { if (String(b.id) === String(topo)) { b.usando = true; b.usadas = topoN } })
+      }
     }
     const ballsTotal = Object.values(finalBalls).reduce((a, b) => a + (b || 0), 0)
+    // a bola da hunt: a que esta sendo gasta; sem consumo ainda, a de maior estoque
+    const ballAtiva = (ballList && ballList.length) ? (ballList.find(b => b.usando) || ballList[0]) : null
 
     // O painel NAO depende mais do Hunt Analyzer do jogo. O `analyzer` do WS so chega
     // enquanto AQUELE painel esta aberto — usar ele como fonte deixava Loot/Supply/Saldo/$h
@@ -253,8 +273,13 @@ function _stateFn () {
     let fin = null
     if (live && live.lootGold != null) {
       const loot = live.lootGold, cap = live.capturesGold || 0, sup = live.supplyGold || 0
-      const saldo = loot + cap - sup
-      fin = { loot, lootItens: live.lootItems, capturas: cap, supply: sup, saldo,
+      // foto de shiny FORA do loot, igual o painel do jogo faz: ele nao conta a Rare Pokemon
+      // Picture no "Loot" mas conta no "Saldo" (e a preco de MERCADO, ~57.873 contra os 5.000
+      // de npcPrice do catalogo). Somar aqui e o que fecha o Saldo no centavo.
+      const foto = live.fotoGold || 0
+      const saldo = loot + cap - sup + foto
+      fin = { loot, lootItens: live.lootItems, capturas: cap, supply: sup, foto, saldo,
+        fotos: live.fotosSess || 0,
         cashH: porH(saldo), bolas: live.ballsUsed, potions: live.potionsUsed,
         aprox: true, fonte: 'vivo',
         // gastou bola e o Supply nao saiu do zero = o id da bola nao esta no catalogo de
@@ -296,7 +321,7 @@ function _stateFn () {
     // hunt do WS diz a mesma coisa (e mais confiavel que o texto da tela)
     if (!zone && live && live.hunt && live.hunt.slug) zone = live.hunt.slug
     return { ok: true, ts: Date.now(), name, level, zone, active, hp, hpMax, hunt: huntF, vivo,
-      balls: finalBalls, ballList, ballsTotal, potions: potionsF, revives: revivesF, potionsUsed,
+      balls: finalBalls, ballList, ballsTotal, ballAtiva, potions: potionsF, revives: revivesF, potionsUsed,
       cura: live ? live.cura : null, usando: live ? live.usando : null,
       rareItems: live ? live.rareItems : null, money, shinies, brokenShiny,
       fin, huntSec, taxa, drops: dropsF,

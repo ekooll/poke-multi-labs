@@ -2,4 +2,11 @@ node_modules/
 dist/
 *.log
 .DS_Store
-_coleta/          # comparacao card x Hunt Analyzer (dado de medicao, nao codigo)
+# comparacao card x Hunt Analyzer (dado de medicao, nao codigo) — comentario em linha PROPRIA:
+# o git NAO aceita comentario inline no .gitignore, entao "_coleta/  # ..." virava um pattern
+# literal com o texto e nao ignorava nada (aparecia como untracked no status).
+_coleta/
+# Sprites do JOGO (arte proprietaria: 64 shiny + 47 marcadores de hunt, recortados do
+# canvas/atlas). Ficam no DISCO e o app usa normalmente; NAO vao pro repo publico. Backup em
+# C:\dev\pokemon\sprites-backup-vperts-2026-07-23.zip. Regenerar via renderer/sprites/LEIA.md.
+renderer/sprites/

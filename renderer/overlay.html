@@ -88,13 +88,20 @@
   .rows::-webkit-scrollbar{width:0}
   .r{display:flex;align-items:center;gap:8px;padding:3px 0}
   .r+.r{border-top:1px solid rgba(216,138,74,.09)}
-  .r .i{width:19px;height:19px;flex:none;display:grid;place-items:center}
+  /* overflow hidden: rede de seguranca. Sprite que venha maior que a caixa e' CORTADO, nunca
+     empurra a linha nem invade a de cima/baixo. */
+  .r .i{width:19px;height:19px;flex:none;display:grid;place-items:center;overflow:hidden}
   .r .i img{width:19px;height:19px;object-fit:contain;image-rendering:pixelated}
-  /* O sprite da bola (markitems/pokeball.png) e 32x32 mas o desenho ocupa so 15x15 - 53% do
-     arquivo e transparente. Com contain em 19px a bola saia com 8,9px de altura contra os 19px
-     do potion/revive (13x21 e 16x22, sem margem): parecia menor que metade. Caixa maior com
-     margem negativa iguala a altura desenhada sem empurrar a linha. */
-  .r .i.ball img{width:40px;height:40px;margin:-10px}
+  /* MOLDURA VAZIA: os sprites de bola do jogo tem 32x32 com o desenho ocupando so 15x15 — 53%
+     do arquivo e transparente. Com contain em 19px a bola saia com 8,9px contra os 19px do
+     potion/revive: parecia menos da metade. A caixa de 40px com margem negativa iguala a altura
+     DESENHADA sem empurrar a linha.
+     MAS isso NAO vale pra todo sprite: medido em 23/07/2026, `idleball.png` tem canvas 17x15 e
+     desenho 17x15 — 100% preenchido, zero moldura. Aplicar o mesmo aumento nela dobrava o
+     tamanho e o icone invadia as linhas vizinhas. Por isso a classe `.z` nao e' fixa no CSS:
+     quem decide e' o `onload`, olhando o naturalWidth do arquivo (ver `linha()`). Sprite novo
+     do jogo se ajusta sozinho, sem ninguem lembrar de vir aqui. */
+  .r .i.ball img.z{width:40px;height:40px;margin:-10px}
   .r .i span{font-size:13px;line-height:1;color:var(--gold)}
   .r .l{flex:1;min-width:0;font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
   /* Inter, nao Cinzel: numero de painel pede fonte de interface. Cinzel e display de
@@ -199,7 +206,15 @@
   let tiersSel = (()=>{ try{ const s=JSON.parse(localStorage.getItem(CHAVE_T)); return Array.isArray(s)&&s.length?s:PADRAO }catch{ return PADRAO } })()
   const salvaTiers = ()=>{ try{ localStorage.setItem(CHAVE_T, JSON.stringify(tiersSel)) }catch{} }
 
-  const capturas = (st)=>{ const c=st&&st.live&&st.live.catches; return Array.isArray(c)?c:[] }
+  // SO as capturas DESTA sessao. `catches` e historico (o dashboard vive dele e nao pode
+  // perder), entao o corte e pelo `ts` contra o marco da sessao: assim a lixeira zera
+  // Derrotados, Profit E a linha de qualidade/ultima captura juntos, como o dono espera.
+  // Captura velha (gravada antes desta versao) nao tem `ts` -> fica so no historico.
+  const capturas = (st)=>{
+    const c = st&&st.live&&st.live.catches; if(!Array.isArray(c)) return []
+    const t0 = st.live.sessTs
+    return t0 ? c.filter(x=>x && x.ts && x.ts >= t0) : c
+  }
   const casaTier = (x)=> tiersSel.indexOf(qtier(x.quality)) >= 0
   const lends = (st)=> capturas(st).filter(casaTier)
   const lendarios = (st)=>lends(st).length
@@ -238,7 +253,14 @@
   function alertOf (st){
     if(!st||st.ok===false) return { badge:'b-down', txt:'Off' }
     if(st.live&&st.live.offline) return { badge:'b-down', txt:'Caiu' }
-    if(st.balls&&Object.keys(st.balls).length){
+    // ALERTA PELA BOLA DA HUNT, nao pelo total. Olhar o total deixava a bolinha VERDE com a
+    // Ultra Ball zerada e 9.185 Poke Ball encalhadas: a conta parava de capturar e o card
+    // dizia que estava tudo bem. Sem `ballAtiva` (versao antiga do leitor), cai no total.
+    const ba = st.ballAtiva
+    if(ba){
+      if((ba.qty||0)===0) return { badge:'b-down', txt:'Sem '+(ba.name||'bola') }
+      if((ba.qty||0)<lowBall()) return { badge:'b-warn', txt:(ba.name||'Bolas') }
+    } else if(st.balls&&Object.keys(st.balls).length){
       if(st.ballsTotal===0) return { badge:'b-down', txt:'Sem bolas' }
       if(st.ballsTotal<lowBall()) return { badge:'b-warn', txt:'Bolas' }
     }
@@ -246,9 +268,40 @@
     return { badge:'b-ok', txt:'Hunt' }
   }
   // icls: classe extra do icone (ver .r .i.ball no CSS - compensa a margem do sprite da bola)
+  // `onload` mede o sprite e decide a escala: >=24px de largura = arquivo com moldura vazia
+  // (os 32x32 do jogo), entao ganha a classe `.z` que amplia. Sprite justo (idleball, 17x15)
+  // fica no tamanho natural. Sem isso, um numero cravado no CSS servia pra uma bola e estourava
+  // a outra — foi o que aconteceu em 23/07 (ver o comentario da regra `.r .i.ball img.z`).
+  const ZOOM = "if(this.naturalWidth>=24)this.classList.add('z')"
   const linha = (src,lbl,val,cls,icls)=>'<div class="r '+(cls||'')+'"><span class="i '+(icls||'')+'">'+
-    (ehImg(src)?'<img src="'+esc(url(src))+'" alt="">':'<span>'+(src||'')+'</span>')+
+    (ehImg(src)?'<img src="'+esc(url(src))+'" onload="'+ZOOM+'" alt="">':'<span>'+(src||'')+'</span>')+
     '</span><span class="l">'+lbl+'</span><span class="v">'+val+'</span></div>'
+
+  // ---- BOLAS POR TIPO ----
+  // Antes era UMA linha com a soma de tudo. MEDIDO em 23/07/2026, com os tres paineis lado a
+  // lado: nosso card dizia 14.266, o widget do jogo dizia "12.670 Ultra + 1.595 Idle" e o
+  // Inventario dizia "8999+" (teto dele). Ninguem mentia — a gente somava tipos que a hunt nem
+  // usa. No Vileplume o numero saia 84% inflado (20.051 exibidos, 10.866 uteis), e o alerta de
+  // "acabando" olhava o total: dava pra zerar a Ultra Ball e o card seguir mostrando nove mil
+  // bolas sem aviso. Agora a bola QUE A HUNT GASTA e a linha principal, e o resto vem embaixo.
+  const linhaBolas = (st, iconePadrao)=>{
+    const lista = Array.isArray(st.ballList) ? st.ballList : null
+    if(!lista || !lista.length)   // sem catalogo do WS: cai no comportamento antigo
+      return linha(iconePadrao,'Pokébola',fmt(st.ballsTotal||0),
+        st.ballsTotal===0?'zero':(st.ballsTotal<lowBall()?'warn':''),'ball')
+    const ativa = st.ballAtiva || lista[0]
+    // UMA LINHA POR TIPO, todas iguais as demais do card (mesma fonte, mesmo tamanho, mesmo
+    // icone do proprio jogo). A primeira versao encolhia e apagava as "outras" numa linha
+    // resumida sem sprite — ficou destoando do resto e escondendo informacao que o dono quer
+    // ver. O que distingue a bola da hunt nao e' o tamanho da fonte: e' a ORDEM (ela vem
+    // primeiro) e o alerta, que so olha pra ela.
+    return lista.filter(b=>b===ativa||(b.qty||0)>0)
+      .sort((a,b)=> (a===ativa?-1:b===ativa?1:(b.qty||0)-(a.qty||0)))
+      .map(b=>{
+        const cls = b!==ativa ? '' : ((b.qty||0)===0 ? 'zero' : ((b.qty||0)<lowBall() ? 'warn' : ''))
+        return linha(b.icon||iconePadrao, esc(b.name||'Pokébola'), fmt(b.qty||0), cls, 'ball')
+      }).join('')
+  }
 
   const rodape = '<div class="grip" id="grip" title="Clique: escolher qualidades · arraste: mover · duplo-clique: volta pro canto"><i></i></div>'+
                  '<div class="rz" id="rz" title="Arraste pra redimensionar"></div>'
@@ -353,7 +406,7 @@
           '<span class="ico" id="zerar" title="Zerar as estatísticas desta conta (o mesmo que o jogo faz ao trocar de hunt)">🗑</span>'+
         '</div>'+
       '</div><div class="rows">'+
-      linha(bola,'Pokébola',fmt(st.ballsTotal||0), st.ballsTotal===0?'zero':(st.ballsTotal<lowBall()?'warn':''), 'ball')+
+      linhaBolas(st, bola)+
       linha(pot,'Potion',st.potions!=null?fmt(st.potions):'—', st.potions===0?'zero':'')+
       linha(rev,'Revive',st.revives!=null?fmt(st.revives):'—', st.revives===0?'zero':'')+
       linha('⚔','Derrotados',kills!=null?fmt(kills):'—')+
