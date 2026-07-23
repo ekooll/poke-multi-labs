@@ -331,7 +331,11 @@
     // nivel do treinador: so aparece quando o leitor conseguiu ler (com bridge vivo o DOM
     // nao e varrido - ver cdp.js). Sem valor, some em vez de mostrar "nv null".
     const tl = (st.level!=null) ? '<span class="tl">nv '+fmt(st.level)+'</span>' : ''
-    const tHunt = tempoHunt(st.huntSec)
+    // O tempo so vale quando a bolinha esta VERDE. Antes o contador vinha do field-init e
+    // seguia correndo com a conta parada na cidade — bolinha amarela e cronometro andando.
+    // Mesma fonte pros dois (st.hunt.seen): ou os dois dizem "cacando", ou nenhum diz.
+    const naHunt = !!(st.hunt && st.hunt.seen)
+    const tHunt = naHunt ? tempoHunt(st.huntSec) : null
     const kills = (st.live && st.live.kills != null) ? st.live.kills : null
     // ✨ e o mesmo simbolo que o jogo usa pra shiny (botao "✨ Shiny" no Log de Capturas)
     const sub = lid && lid.name

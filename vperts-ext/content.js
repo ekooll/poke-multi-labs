@@ -219,6 +219,17 @@
     V.ballsUsedById[id] = (V.ballsUsedById[id] || 0) + 1;
     V.supplyGold += precoBola(id);   // priceGold da msg `balls`, nao npcPrice do items.json
   };
+  // ---- RELOGIO DA HUNT ----
+  // O `since` so nascia no field-init, entao o contador do card seguia correndo com a conta
+  // parada na cidade e nunca zerava. Aqui: se o ultimo sinal de hunt (mob no campo ou kill)
+  // foi ha mais de 60s, quem chega agora e' RE-ENTRADA -> o relogio comeca do zero.
+  // 60s e' o mesmo limiar que o cdp usa pra pintar a bolinha, pra as duas nunca discordarem.
+  const FORA_MS = 60000;
+  const marcaAtividadeHunt = () => {
+    const agora = Date.now();
+    const ult = Math.max(V.lastFieldTs || 0, V.lastKillTs || 0);
+    if (V.hunt && ult && (agora - ult) > FORA_MS) V.hunt.since = agora;
+  };
   // troca de hunt: zera o que o jogo zera. Historico (capturas, melhor, fotos) fica.
   const resetSess = () => {
     V.kills = 0; V.xp = 0; V.attempts = 0; V.caught = 0; V.brokenBalls = 0;
@@ -261,7 +272,7 @@
             P.shinyOnField = m.mobs.some(x => x && x.shiny && !x.dead);
             // campo COM mob = area de caca. Na cidade/mercado nao vem mob nenhum — e' esse
             // carimbo que diz se a conta esta mesmo cacando (o texto da tela mentia).
-            if (m.mobs.length) V.lastFieldTs = Date.now();
+            if (m.mobs.length) { marcaAtividadeHunt(); V.lastFieldTs = Date.now(); }
             // POKEMON DA HUNT: o mob da tela vira o icone do card. MEDIDO no WS (22/07): o mob
             // NAO tem `name` - vem { row, col, facing, slot, speciesId, hp, maxHp, dead,
             // respawning, shiny }. Por isso a chave e o speciesId, e o nome sai do slug.
@@ -278,6 +289,7 @@
           }
           break;
         case 'field-kill':
+          marcaAtividadeHunt();                                  // voltou depois de sair? relogio do zero
           V.kills++; V.tot.kills++; V.lastKillTs = Date.now();   // prova de que a hunt esta viva
           if (typeof m.xpGained === 'number') { V.xp += m.xpGained; V.tot.xp += m.xpGained; }
           // shiny selvagem derrotado = shiny que ESCAPOU (nao virou seu)
