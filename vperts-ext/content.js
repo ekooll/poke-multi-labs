@@ -129,7 +129,9 @@
   // estado interno (fora do V pra nao ir parar no localStorage a cada save)
   const P = { ids: Object.create(null), shinyOnField: false, lastBall: null, huntKey: null,
     inv: null, items: null, loadingItems: false, lootById: Object.create(null),
-    ballIdByName: Object.create(null), curaAntes: null };
+    ballIdByName: Object.create(null), curaAntes: null,
+    pokesSync: 0,           // 1 = ja sincronizamos a colecao (a 1a lista nao conta captura)
+    esperandoCaptura: 0 };  // quantas capturas o catch-result anunciou e ainda nao casamos
 
   // ---- ESTOQUE de potions/revives ----
   // O proprio jogo publica o catalogo de itens em /game/items.json (id -> nome/categoria/icone;
@@ -150,8 +152,18 @@
     : /^https?:\/\//.test(ic) ? ic
     : ic.charAt(0) === '/' ? location.origin + ic
     : location.origin + '/assets/items/' + ic;
-  // preco de NPC do catalogo do jogo (bolas tambem sao itens do inventario) — base do Supply
+  // preco de NPC do catalogo do jogo (/game/items.json) — usado no LOOT
   const preco = (id) => (P.items && P.items[id] && P.items[id].price) || 0;
+  // PRECO DA BOLA: sai do catalogo que vem na msg `balls` (priceGold), NAO do items.json.
+  // MEDIDO em 22/07/2026: as bolas nao existem no items.json (categorias: card, clan, heal,
+  // loot, revive, stone, tm) e usam ids 1..4, que COLIDEM com ids de itens de la — o Supply
+  // acabava somando o npcPrice de um item qualquer (~$40) em vez dos $130 da Ultra Ball.
+  // Prova: o Hunt Analyzer marcou Supply -$5.590 com 43 bolas = exatamente 130 cada.
+  const precoBola = (id) => {
+    const c = V.ballCatalog; if (!c) return 0;
+    for (const k in c) { const b = c[k]; if (b && b.id === id) return b.priceGold || 0; }
+    return 0;
+  };
   // sem catalogo -> null (a UI mostra "—"); melhor vazio do que numero errado
   const bag = () => {
     if (!P.inv || !P.items) return;
@@ -205,7 +217,7 @@
     if (V.ballCounts && V.ballCounts[id] != null) V.ballCounts[id] = Math.max(0, V.ballCounts[id] - 1);
     if (!V.ballsUsedById) V.ballsUsedById = Object.create(null);
     V.ballsUsedById[id] = (V.ballsUsedById[id] || 0) + 1;
-    V.supplyGold += preco(id);
+    V.supplyGold += precoBola(id);   // priceGold da msg `balls`, nao npcPrice do items.json
   };
   // troca de hunt: zera o que o jogo zera. Historico (capturas, melhor, fotos) fica.
   const resetSess = () => {
@@ -283,6 +295,10 @@
           if (m.success !== true) {
             V.brokenBalls++; V.tot.brokenBalls++;
             if (P.shinyOnField) V.brokenShiny++;      // ball gasta COM shiny na tela
+          } else {
+            // capturou: o bicho chega na PROXIMA lista `pokes`. Este contador e o portao —
+            // sem ele, lista de market/depot viraria captura. Ver o case 'pokes'.
+            P.esperandoCaptura = (P.esperandoCaptura || 0) + 1;
           }
           break;
         case 'poke-delta': {    // poke novo na colecao = captura (o jogo tambem manda update)
@@ -329,6 +345,35 @@
           const lead = lista.find(p => p && p.leader) || lista.find(p => p && p.team) || null;
           if (lead) V.lider = { name: lead.name, speciesId: lead.speciesId, level: lead.level,
             shiny: !!lead.shiny, hp: lead.hp, maxHp: lead.maxHp, quality: lead.quality, ivTotal: lead.ivTotal };
+
+          // CAPTURAS — MEDIDO em 22/07/2026: `poke-delta` SUMIU do protocolo (a lista de
+          // tipos que chega hoje e field/field-kill/catch-result/poke-xp/pokes/balls/...).
+          // Resultado: caught ficava 0 e capturesGold 0 mesmo capturando, e o Profit saia
+          // ~18k abaixo do Saldo do jogo. Agora a captura e detectada aqui: `pokes` traz a
+          // colecao INTEIRA (id, sellValue, quality, ivTotal, shiny), entao id que nunca vimos
+          // = bicho novo. A PRIMEIRA lista (login) so sincroniza os ids, senao a colecao
+          // inteira entraria como "capturada agora".
+          // SO conta se o jogo avisou uma captura (catch-result success) ha pouco. Sem esse
+          // portao, qualquer lista `pokes` de outro contexto — market, depot, breeding —
+          // entrava como captura: no teste de 22/07 deu 28 "capturas" e R$1,2 mi de
+          // capturesGold com o dono parado no market.
+          const primeira = !P.pokesSync;
+          for (const p of lista) {
+            if (!p || !p.id || P.ids[p.id]) continue;
+            P.ids[p.id] = 1;
+            if (primeira) continue;
+            if (!P.esperandoCaptura) continue;   // id novo sem captura anunciada = nao e' bicho capturado
+            P.esperandoCaptura--;
+            V.caught++; V.tot.caught++;
+            V.capturesGold += (p.sellValue || 0);
+            if (p.shiny) { V.shiniesCaught++; V.tot.shiniesCaught++; V.shinies++; V.tot.shinies++; }
+            V.lastCatch = { name: p.name, quality: p.quality, ivTotal: p.ivTotal, power: p.power,
+              shiny: !!p.shiny, sellValue: p.sellValue, speciesId: p.speciesId, ball: P.lastBall };
+            V.catches.push({ name: p.name, quality: p.quality, ivTotal: p.ivTotal,
+              shiny: !!p.shiny, speciesId: p.speciesId });
+            if (V.catches.length > 200) V.catches.shift();
+          }
+          P.pokesSync = 1;
           break;
         }
         case 'inventory':                              // mochila: base do estoque real

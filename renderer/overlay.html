@@ -65,8 +65,18 @@
   .sub .sh{color:var(--gold)}
   .sub .lv{color:var(--gold-soft);font-weight:800}
   .acts{display:flex;align-items:center;gap:5px;flex:none}
-  .b{font-size:8.5px;font-weight:800;padding:3px 8px;border-radius:99px;text-transform:uppercase;letter-spacing:.06em}
-  .b-ok{color:#0c1a10;background:var(--good)} .b-warn{color:#1a1405;background:var(--mid)} .b-down{color:#fff;background:#e24b35}
+  /* estado da conta = SO a cor do circulo (o dono tirou os rotulos "HUNT"/"FORA": a bolinha
+     ja diz tudo e sobra espaco no cabecalho). O texto vive no title, pro hover. */
+  .b{width:9px;height:9px;flex:none;border-radius:50%;padding:0;
+     box-shadow:0 0 0 2px rgba(0,0,0,.4), 0 0 8px rgba(0,0,0,.5)}
+  .b-ok{background:var(--good)} .b-warn{background:var(--mid)} .b-down{background:#e24b35}
+  .b-ok{animation:pulseOk 2.4s infinite}
+  @keyframes pulseOk{0%{box-shadow:0 0 0 2px rgba(0,0,0,.4),0 0 0 0 rgba(79,196,122,.5)}
+    70%{box-shadow:0 0 0 2px rgba(0,0,0,.4),0 0 0 6px rgba(79,196,122,0)}
+    100%{box-shadow:0 0 0 2px rgba(0,0,0,.4),0 0 0 0 rgba(79,196,122,0)}}
+  /* tempo na hunt, entre o nome e a bolinha */
+  .tempo{font-size:9.5px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;
+    white-space:nowrap;letter-spacing:.02em}
   .ico{width:21px;height:21px;flex:none;display:grid;place-items:center;cursor:pointer;
     border:1px solid var(--line);border-radius:7px;background:rgba(255,255,255,.04);
     color:var(--muted);font-size:11px;line-height:1;transition:.14s}
@@ -218,6 +228,13 @@
   const spriteDe = (lista,cat)=>{ if(!Array.isArray(lista))return null
     const c=lista.filter(x=>x.tipo===cat&&x.icon).sort((a,b)=>b.qty-a.qty)[0]; return c?c.icon:null }
 
+  // tempo na hunt no formato do proprio jogo ("0s", "3m 28s", "1h 04m")
+  const tempoHunt = (s)=>{
+    if (s == null || s < 0) return null
+    if (s < 60) return s + 's'
+    const m = Math.floor(s / 60), h = Math.floor(m / 60)
+    return h ? h + 'h ' + String(m % 60).padStart(2,'0') + 'm' : m + 'm ' + String(s % 60).padStart(2,'0') + 's'
+  }
   function alertOf (st){
     if(!st||st.ok===false) return { badge:'b-down', txt:'Off' }
     if(st.live&&st.live.offline) return { badge:'b-down', txt:'Caiu' }
@@ -314,6 +331,8 @@
     // nivel do treinador: so aparece quando o leitor conseguiu ler (com bridge vivo o DOM
     // nao e varrido - ver cdp.js). Sem valor, some em vez de mostrar "nv null".
     const tl = (st.level!=null) ? '<span class="tl">nv '+fmt(st.level)+'</span>' : ''
+    const tHunt = tempoHunt(st.huntSec)
+    const kills = (st.live && st.live.kills != null) ? st.live.kills : null
     // ✨ e o mesmo simbolo que o jogo usa pra shiny (botao "✨ Shiny" no Log de Capturas)
     const sub = lid && lid.name
       ? '<div class="sub">'+(lid.shiny?'<span class="sh">✨ </span>':'')+esc(lid.name)+
@@ -324,13 +343,16 @@
         '<span class="av">'+(dex?'<img src="'+(doJogo||gif)+'" '+
           'onerror="this.onerror=function(){this.onerror=null;this.src=\''+png+'\'};this.src=\''+gif+'\'" alt="">':'')+'</span>'+
         '<div class="who"><div class="n"><span class="nick">'+esc(nameOf(NUM))+'</span>'+tl+'</div>'+sub+'</div>'+
-        '<div class="acts"><span class="b '+a.badge+'">'+a.txt+'</span>'+
+        '<div class="acts">'+
+          (tHunt ? '<span class="tempo" title="Tempo nesta hunt">'+tHunt+'</span>' : '')+
+          '<span class="b '+a.badge+'" title="'+a.txt+'"></span>'+
           '<span class="ico" id="zerar" title="Zerar as estatísticas desta conta (o mesmo que o jogo faz ao trocar de hunt)">🗑</span>'+
         '</div>'+
       '</div><div class="rows">'+
       linha(bola,'Pokébola',fmt(st.ballsTotal||0), st.ballsTotal===0?'zero':(st.ballsTotal<lowBall()?'warn':''), 'ball')+
       linha(pot,'Potion',st.potions!=null?fmt(st.potions):'—', st.potions===0?'zero':'')+
       linha(rev,'Revive',st.revives!=null?fmt(st.revives):'—', st.revives===0?'zero':'')+
+      linha('⚔','Derrotados',kills!=null?fmt(kills):'—')+
       linha(lendSprite(st)||'✨',rotuloTier(),fmt(lendarios(st)),'','poke')+
       linha('$','Profit',saldo!=null?'<span class="v '+(saldo<0?'neg':'pos')+'">'+(saldo<0?'':'+')+money(saldo)+'</span>':'—')+
       '</div>'+
