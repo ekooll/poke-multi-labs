@@ -83,14 +83,42 @@ async function readLoot (port) {
 // ------------------------------------------------------------------
 function _stateFn () {
   try {
+    // ---- O BRIDGE VEM PRIMEIRO ----
+    // leitura ao vivo via localStorage.__vperts (populado pelo content.js).
+    // NAO e' interceptacao — so leitura de um valor. Traz kills/xp/catches/shiny/bolas/loot.
+    let live = null
+    try {
+      const raw = localStorage.getItem('__vperts')
+      if (raw) {
+        const w = JSON.parse(raw)
+        live = { kills: w.kills, xp: w.xp, caught: w.caught, brokenBalls: w.brokenBalls, shinies: w.shinies,
+          brokenShiny: w.brokenShiny, shiniesCaught: w.shiniesCaught, shinyWild: w.shinyWild, photos: w.photos,
+          lastCatch: w.lastCatch, bestCatch: w.bestCatch, catches: w.catches, rareDrops: w.rareDrops,
+          potions: w.potions, revives: w.revives, rareItems: w.rareItems, cura: w.cura, usando: w.usando,
+          drops: w.drops, lootGold: w.lootGold, lootItems: w.lootItems, capturesGold: w.capturesGold, ballsUsed: w.ballsUsed,
+          supplyGold: w.supplyGold, potionsUsed: w.potionsUsed, anTs: w.anTs,
+          lider: w.lider,
+          ballCounts: w.ballCounts, ballCatalog: w.ballCatalog, msgs: w.msgs, startTs: w.startTs,
+          lastMsgTs: w.lastMsgTs, lastKillTs: w.lastKillTs, lastFieldTs: w.lastFieldTs,
+          hunt: w.hunt, an: w.an, tot: w.tot, offline: w.offline }
+      }
+    } catch (e) {}
+
+    // ---- COM O BRIDGE VIVO, NAO SE VARRE O DOM ----
+    // O DOM nao tem nada que o WS ja nao entregue melhor, e a varredura custa caro DENTRO do
+    // renderer do jogo: root.querySelectorAll('*') em milhares de nos + document.body.innerText
+    // (reflow sincrono). Como os 4 overlays, o dashboard e o grid de stats chamam o leitor a
+    // cada 2,5-4s e CADA chamada le TODAS as contas, isso dava ~5 varreduras por segundo por
+    // conta. Bridge com mensagem nos ultimos 60s = pula a varredura inteira.
+    const vivo = !!(live && live.msgs && (Date.now() - (live.lastMsgTs || 0)) < 60000)
     const root = document.querySelector('#game-root') || document.body
-    const leaves = [...root.querySelectorAll('*')].filter(e => e.children.length === 0)
     // textContent, NAO innerText: innerText forca um reflow sincrono a cada chamada e essa
     // varredura roda em milhares de folhas — era isso que dava a engasgada periodica no
     // jogo enquanto o dashboard estava aberto. Em folha o texto e o mesmo.
+    const leaves = vivo ? [] : [...root.querySelectorAll('*')].filter(e => e.children.length === 0)
     const T = e => ((e.textContent || '').trim())
     const toInt = s => { const m = String(s).match(/([\d][\d.]*)/); return m ? parseInt(m[1].replace(/\./g, ''), 10) : null }
-    const body = (document.body.innerText || '')
+    const body = vivo ? '' : (document.body.innerText || '')
 
     // nivel + zona: "Nível 203 · Hard Golem"
     let level = null, zone = null, name = null
@@ -130,7 +158,7 @@ function _stateFn () {
     // bolas: acha o rotulo e o numero mais proximo (subindo ate 4 pais)
     const ballDefs = [['poke', /pok[eé]\s*ball/i], ['ultra', /ultra\s*ball/i], ['idle', /idle\s*ball/i], ['great', /great\s*ball/i], ['master', /master\s*ball/i]]
     const balls = {}
-    const cands = [...root.querySelectorAll('[aria-label],[title],button,span,div')]
+    const cands = vivo ? [] : [...root.querySelectorAll('[aria-label],[title],button,span,div')]
     for (const [key, re] of ballDefs) {
       const el = cands.find(e => {
         const lab = ((e.getAttribute && (e.getAttribute('aria-label') || e.getAttribute('title'))) || '') + ' ' + (e.children.length < 4 ? T(e) : '')
@@ -161,24 +189,6 @@ function _stateFn () {
     const monies = (body.match(/\$\s*[\d.]+/g) || []).map(s => parseInt(s.replace(/[^\d]/g, ''), 10)).filter(n => !isNaN(n))
     if (monies.length) money = Math.max.apply(null, monies)
 
-    // leitura ao vivo via localStorage.__vperts (populado por userscript/Gabriel).
-    // NAO e interceptacao — so leitura de um valor. Traz kills/xp/catches/shiny/ball-quebrada.
-    let live = null
-    try {
-      const raw = localStorage.getItem('__vperts')
-      if (raw) {
-        const w = JSON.parse(raw)
-        live = { kills: w.kills, xp: w.xp, caught: w.caught, brokenBalls: w.brokenBalls, shinies: w.shinies,
-          brokenShiny: w.brokenShiny, shiniesCaught: w.shiniesCaught, shinyWild: w.shinyWild, photos: w.photos,
-          lastCatch: w.lastCatch, bestCatch: w.bestCatch, catches: w.catches, rareDrops: w.rareDrops,
-          potions: w.potions, revives: w.revives, rareItems: w.rareItems, cura: w.cura, usando: w.usando,
-          drops: w.drops, lootGold: w.lootGold, lootItems: w.lootItems, capturesGold: w.capturesGold, ballsUsed: w.ballsUsed,
-          lider: w.lider,
-          ballCounts: w.ballCounts, ballCatalog: w.ballCatalog, msgs: w.msgs, startTs: w.startTs,
-          lastMsgTs: w.lastMsgTs, lastKillTs: w.lastKillTs, lastFieldTs: w.lastFieldTs,
-          hunt: w.hunt, an: w.an, tot: w.tot, offline: w.offline }
-      }
-    } catch (e) {}
     const shinies = live && live.shinies != null ? live.shinies : null
     const brokenShiny = live && live.brokenShiny != null ? live.brokenShiny : null
 
@@ -198,14 +208,21 @@ function _stateFn () {
         const c = cat[id]
         const key = (c && slug(c.name)) || ('id' + id)
         wb[key] = qty
-        ballList.push({ id, key, name: (c && c.name) || ('Bola ' + id), qty, icon: (c && c.iconUrl) || null })
+        const nome = (c && c.name) || ('Bola ' + id)
+        ballList.push({ id, key, name: nome, qty, icon: (c && c.iconUrl) || null, idle: key === 'idle' || /idle/i.test(nome) })
       }
-      if (ballList.length) { finalBalls = wb; ballList.sort((a, b) => (+a.id) - (+b.id)) }
+      // por QUANTIDADE (maior primeiro): a UI mostra so a maior + a idle, e o icone do
+      // card passa a ser o da bola que a conta realmente esta usando
+      if (ballList.length) { finalBalls = wb; ballList.sort((a, b) => (b.qty || 0) - (a.qty || 0)) }
     }
     const ballsTotal = Object.values(finalBalls).reduce((a, b) => a + (b || 0), 0)
 
-    // Hunt Analyzer: quando o bridge ja pegou um `analyzer` do WS, esse e o numero OFICIAL
-    // (o mesmo do painel do jogo) e nao exige o painel aberto. So cai no DOM sem ele.
+    // O painel NAO depende mais do Hunt Analyzer do jogo. O `analyzer` do WS so chega
+    // enquanto AQUELE painel esta aberto — usar ele como fonte deixava Loot/Supply/Saldo/$h
+    // congelados num snapshot velho (e zerados enquanto ninguem abrisse o painel no jogo).
+    // Agora a fonte e' o que o bridge soma ao vivo (field-kill + poke-delta + catch-result +
+    // inventory) valorizado pelo npcPrice do catalogo. O analyzer fica so pra conferencia,
+    // carimbado com a idade em segundos.
     let anF = hasAn ? an : null
     if (live && live.an) {
       const a = live.an
@@ -213,38 +230,41 @@ function _stateFn () {
         cashH: a.goldPerHour, xpH: a.xpPerHour, killsH: a.killsPerHour, shinyCaptures: a.shinyCaptures,
         seconds: a.seconds, lootItems: a.lootItems, capturesGold: a.capturesGold,
         supplyGold: a.supplyGold, ballsUsed: a.ballsUsed, potionsUsed: a.potionsUsed,
-        drops: a.drops || [], fonte: 'ws' }
+        drops: a.drops || [], fonte: 'ws', ts: live.anTs || null,
+        idade: live.anTs ? Math.round((Date.now() - live.anTs) / 1000) : null }
     }
-    // Bloco financeiro no formato do Hunt Analyzer do jogo (Loot + Capturas - Supply).
-    // Enquanto o `analyzer` nao chega (~90s), preenche com o que o bridge somou ao vivo,
-    // valorizado pelo npcPrice do catalogo — marcado como estimativa (`aprox`).
-    let fin = null
-    if (live) {
-      const a = live.an
-      const temAn = !!(a && a.lootGold != null)
-      const loot = temAn ? a.lootGold : live.lootGold
-      const cap = temAn ? a.capturesGold : live.capturesGold
-      const sup = temAn ? a.supplyGold : null
-      if (loot != null) {
-        fin = {
-          loot, lootItens: temAn ? a.lootItems : live.lootItems,
-          capturas: cap, supply: sup,
-          saldo: temAn ? a.balance : (sup != null ? loot + (cap || 0) - sup : null),
-          cashH: temAn ? a.goldPerHour : null,
-          bolas: temAn ? a.ballsUsed : live.ballsUsed,
-          potions: temAn ? a.potionsUsed : null,
-          aprox: !temAn,
-        }
-      }
-    }
-    // tempo na hunt: o analyzer manda em segundos; senao conta desde o field-init
+    // tempo na hunt: conta desde o field-init (sinal do WS, sempre vivo). O `seconds` do
+    // analyzer so entra se o field-init ainda nao tiver passado por aqui.
     let huntSec = null
-    if (live && live.an && live.an.seconds != null) huntSec = live.an.seconds
-    else if (live && live.hunt && live.hunt.since) huntSec = Math.round((Date.now() - live.hunt.since) / 1000)
-    // drops da sessao: os do analyzer (com valor de mercado) tem prioridade; o catalogo
-    // entra so pra dar o sprite de cada item
+    if (live && live.hunt && live.hunt.since) huntSec = Math.round((Date.now() - live.hunt.since) / 1000)
+    else if (live && live.an && live.an.seconds != null) huntSec = live.an.seconds
+    const horas = huntSec ? huntSec / 3600 : 0
+    // menos de ~15s de hunt nao da taxa confiavel (dividir por quase zero estoura o /h)
+    const porH = (v) => (horas > 0.004 && v != null) ? Math.round(v / horas) : null
+
+    // Bloco financeiro no formato do Hunt Analyzer do jogo (Loot + Capturas - Supply),
+    // 100% com dado vivo. `aprox` segue marcando que o preco e' o de NPC do catalogo — o
+    // painel do jogo pode estar com "preco de Mercado" ligado, entao nao bate no centavo.
+    let fin = null
+    if (live && live.lootGold != null) {
+      const loot = live.lootGold, cap = live.capturesGold || 0, sup = live.supplyGold || 0
+      const saldo = loot + cap - sup
+      fin = { loot, lootItens: live.lootItems, capturas: cap, supply: sup, saldo,
+        cashH: porH(saldo), bolas: live.ballsUsed, potions: live.potionsUsed,
+        aprox: true, fonte: 'vivo',
+        // gastou bola e o Supply nao saiu do zero = o id da bola nao esta no catalogo de
+        // itens (ou veio sem npcPrice). Melhor avisar do que mostrar saldo inflado calado.
+        supplyParcial: sup === 0 && (live.ballsUsed || 0) > 0 }
+    } else if (hasAn) {                       // sem bridge: ultimo recurso, o DOM do painel
+      fin = { loot: an.loot, saldo: an.saldo, cashH: an.cashH, aprox: false, fonte: 'dom' }
+    }
+    // taxas da sessao calculadas do dado vivo — nada de xpPerHour/killsPerHour do analyzer
+    const taxa = live ? { xpH: porH(live.xp), killsH: porH(live.kills), cashH: fin ? fin.cashH : null } : null
+    // drops da sessao: os do bridge (npcPrice, sempre frescos). O analyzer so entra pra dar
+    // o valor de MERCADO quando o snapshot dele for recente (<150s).
     let dropsF = live ? live.drops : null
-    if (live && live.an && Array.isArray(live.an.drops) && live.an.drops.length) {
+    const anFresco = !!(live && live.anTs && (Date.now() - live.anTs) < 150000)
+    if (anFresco && Array.isArray(live.an.drops) && live.an.drops.length) {
       const ico = {}; (live.drops || []).forEach(d => { if (d.icon) ico[d.name] = d.icon })
       dropsF = live.an.drops.map(d => ({ name: d.name, qty: d.qty, gold: d.gold, icon: ico[d.name] || null }))
         .sort((x, y) => (y.gold || 0) - (x.gold || 0)).slice(0, 14)
@@ -264,12 +284,17 @@ function _stateFn () {
     // ultimo recurso, e agora vai rotulado como usado.
     const potionsF = (live && live.potions != null) ? live.potions : null
     const revivesF = (live && live.revives != null) ? live.revives : null
-    const potionsUsed = (live && live.an && live.an.potionsUsed != null) ? live.an.potionsUsed : potions
-    return { ok: true, ts: Date.now(), name, level, zone, active, hp, hpMax, hunt: huntF,
+    // gasto de cura da sessao: o delta do inventario (vivo). DOM/analyzer so sem bridge.
+    const potionsUsed = (live && live.potionsUsed != null) ? live.potionsUsed
+      : (live && live.an && live.an.potionsUsed != null) ? live.an.potionsUsed : potions
+    // sem varredura do DOM a "zona" viria vazia e o subtitulo dos cards sumia — o slug da
+    // hunt do WS diz a mesma coisa (e mais confiavel que o texto da tela)
+    if (!zone && live && live.hunt && live.hunt.slug) zone = live.hunt.slug
+    return { ok: true, ts: Date.now(), name, level, zone, active, hp, hpMax, hunt: huntF, vivo,
       balls: finalBalls, ballList, ballsTotal, potions: potionsF, revives: revivesF, potionsUsed,
       cura: live ? live.cura : null, usando: live ? live.usando : null,
       rareItems: live ? live.rareItems : null, money, shinies, brokenShiny,
-      fin, huntSec, drops: dropsF,
+      fin, huntSec, taxa, drops: dropsF,
       // time da conta pelo WS: nome/nivel/HP do lider vem certo (o DOM so via o canvas)
       lider: live ? live.lider : null,
       photos: live ? live.photos : null, live, an: anF }

@@ -341,20 +341,39 @@ ipcMain.handle('add-account', () => { if (slots.length < MAX) { openAccount(next
 ipcMain.handle('close-account', (_e, i) => { closeSlot(i); layout(); emitState(); });
 ipcMain.handle('open-dashboard', () => { openDashboard(); return true; });
 
-// dashboard (reaproveitado)
-ipcMain.handle('read-dashboard', async () => {
+// ---- dashboard (reaproveitado) ----
+// UMA leitura serve pra todo mundo. Os 4 overlays (4s), o dashboard (4s) e o grid de stats
+// (2,5s) chamam esse handler, e cada chamada varre TODAS as contas — dava ate 5 leituras por
+// segundo por conta dentro do renderer do jogo. Agora: resposta com menos de CACHE_MS volta
+// do cache, e chamadas simultaneas compartilham a MESMA promessa em vez de enfileirar.
+const CACHE_MS = 1500;
+let leituraCache = null, leituraTs = 0, leituraEmVoo = null;
+
+async function lerContas () {
   const results = [];
   let changed = false;
   for (const s of slots) {
     let state = null;
     try { state = await s.view.webContents.executeJavaScript(cdp.STATE_EXPR, true); }
     catch (e) { state = { ok: false, err: String(e && e.message || e) }; }
-    const conn = !!(state && state.ok && (state.name || state.level != null));
+    // "conectada" agora vale pelo sinal do WS tambem: sem varrer o DOM o leitor nao devolve
+    // mais name/level, e so por isso a sidebar marcaria as contas como desconectadas.
+    const conn = !!(state && state.ok && (state.name || state.level != null ||
+      (state.live && state.live.msgs)));
     if (conn !== s.connected) { s.connected = conn; changed = true; }
     results.push({ num: s.num, state, embedded: true });
   }
   if (changed) emitState();
   return { available: true, results };
+}
+
+ipcMain.handle('read-dashboard', async () => {
+  if (leituraCache && (Date.now() - leituraTs) < CACHE_MS) return leituraCache;
+  if (leituraEmVoo) return leituraEmVoo;                       // ja tem uma lendo: pega carona
+  leituraEmVoo = lerContas()
+    .then(r => { leituraCache = r; leituraTs = Date.now(); return r; })
+    .finally(() => { leituraEmVoo = null; });
+  return leituraEmVoo;
 });
 ipcMain.handle('dashboard-pin', (_e, on) => { if (dash) dash.setAlwaysOnTop(!!on); });
 ipcMain.handle('dashboard-minimize', () => { if (dash) dash.minimize(); });

@@ -110,13 +110,16 @@ function DoWork($cfg){
     [void][W]::SetWindowLong($wh,$GWL_STYLE,$style)
     [void][W]::SetParent($wh,$script:hostH)
 
-    # teclado cross-process: amarra as filas de input host<->child
+    # childTid so pra passar ao FocusChild (que faz attach TEMPORARIO da thread do PS).
+    # NAO fazer AttachThreadInput host<->child PERMANENTE aqui: grudar as filas de
+    # input pra sempre trava TODO input (mouse+teclado) do painel ao voltar do alt-tab
+    # (a fila compartilhada fica sem "janela ativa"; so destrava clicando no host).
+    # FocusChild ja entrega o foco de teclado sem esse efeito colateral.
     $childTid = 0
     try {
       $cpid = 0
       $childTid = [W]::GetWindowThreadProcessId($wh, [ref]$cpid)
-      if($childTid -ne 0 -and $childTid -ne $script:hostTid){ [void][W]::AttachThreadInput($script:hostTid,$childTid,$true) }
-    } catch { Log ("attachinput fail: " + $_.Exception.Message) }
+    } catch { Log ("gettid fail: " + $_.Exception.Message) }
 
     if($solo -ge 0){
       if($i -eq $solo){

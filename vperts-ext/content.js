@@ -117,14 +117,19 @@
     hunt: null,       // { slug, key, since } de field-init
     drops: null, lootGold: 0, lootItems: 0,   // loot da sessao valorizado pelo catalogo
     capturesGold: 0, ballsUsed: 0,            // pro saldo (Loot + Capturas - Supply)
-    an: null,         // analyzer OFICIAL do jogo (kills/xpPerHour/goldPerHour/drops[]...)
+    // SUPPLY proprio: o que a sessao gastou em bolas + cura, valorizado pelo catalogo.
+    // Antes so existia dentro do `analyzer` do jogo — e o analyzer so chega quando o painel
+    // Hunt Analyzer esta ABERTO, entao o saldo do dashboard ficava congelado num snapshot.
+    supplyGold: 0, potionsUsed: 0, ballsUsedById: null,
+    an: null, anTs: 0,   // analyzer do jogo — guardado so pra conferencia, NAO manda mais no painel
     ballCounts: null, ballCatalog: null,   // catalogo traz nome+icone -> fim do mapa chutado
     lastCatch: null, bestCatch: null, catches: [], rareDrops: [], loot: {},
     offline: false,
   };
   // estado interno (fora do V pra nao ir parar no localStorage a cada save)
   const P = { ids: Object.create(null), shinyOnField: false, lastBall: null, huntKey: null,
-    inv: null, items: null, loadingItems: false, lootById: Object.create(null) };
+    inv: null, items: null, loadingItems: false, lootById: Object.create(null),
+    ballIdByName: Object.create(null), curaAntes: null };
 
   // ---- ESTOQUE de potions/revives ----
   // O proprio jogo publica o catalogo de itens em /game/items.json (id -> nome/categoria/icone;
@@ -145,6 +150,8 @@
     : /^https?:\/\//.test(ic) ? ic
     : ic.charAt(0) === '/' ? location.origin + ic
     : location.origin + '/assets/items/' + ic;
+  // preco de NPC do catalogo do jogo (bolas tambem sao itens do inventario) — base do Supply
+  const preco = (id) => (P.items && P.items[id] && P.items[id].price) || 0;
   // sem catalogo -> null (a UI mostra "—"); melhor vazio do que numero errado
   const bag = () => {
     if (!P.inv || !P.items) return;
@@ -158,9 +165,14 @@
       }
       if (c.rare || c.category === 'card' || RARE.test(c.name || '')) raros.push({ name: c.name, qty: q });
     });
-    // QUAL potion o jogo esta gastando: a que DIMINUIU desde a leitura anterior
+    // QUAL potion o jogo esta gastando: a que DIMINUIU desde a leitura anterior.
+    // O MESMO delta alimenta o Supply da sessao (quantas curas foram queimadas e quanto
+    // isso vale) — antes esse numero so existia dentro do analyzer do jogo.
     const antes = P.curaAntes;
-    if (antes) cura.forEach(x => { if (antes[x.id] != null && x.qty < antes[x.id]) V.usando = x.name; });
+    if (antes) cura.forEach(x => {
+      const dif = (antes[x.id] != null) ? (antes[x.id] - x.qty) : 0;
+      if (dif > 0) { V.usando = x.name; V.potionsUsed += dif; V.supplyGold += dif * preco(x.id); }
+    });
     P.curaAntes = {}; cura.forEach(x => { P.curaAntes[x.id] = x.qty; });
     V.potions = heal; V.revives = rev;
     V.cura = cura.sort((a, b) => b.qty - a.qty);        // com nome e icone REAL do jogo
@@ -183,12 +195,25 @@
     V.drops = lista.slice(0, 14);
     V.lootGold = gold; V.lootItems = itens;
   };
+  // BAIXA DA BOLA: o `balls` do jogo nao chega a cada arremesso, entao entre uma mensagem e
+  // outra o estoque do painel ficava parado. Aqui a gente desconta na hora a bola usada — o
+  // `balls` seguinte, que e' a autoridade, sobrescreve — e ja soma o custo dela no Supply.
+  const gastaBola = (m) => {
+    let id = (m.ballId != null) ? m.ballId : (m.itemId != null ? m.itemId : null);
+    if (id == null && m.ballName) id = P.ballIdByName[String(m.ballName).toLowerCase()];
+    if (id == null) return;
+    if (V.ballCounts && V.ballCounts[id] != null) V.ballCounts[id] = Math.max(0, V.ballCounts[id] - 1);
+    if (!V.ballsUsedById) V.ballsUsedById = Object.create(null);
+    V.ballsUsedById[id] = (V.ballsUsedById[id] || 0) + 1;
+    V.supplyGold += preco(id);
+  };
   // troca de hunt: zera o que o jogo zera. Historico (capturas, melhor, fotos) fica.
   const resetSess = () => {
     V.kills = 0; V.xp = 0; V.attempts = 0; V.caught = 0; V.brokenBalls = 0;
     V.shinies = 0; V.shiniesCaught = 0; V.shinyWild = 0; V.brokenShiny = 0;
-    V.loot = {}; V.an = null; V.drops = null; V.lootGold = 0; V.lootItems = 0;
+    V.loot = {}; V.an = null; V.anTs = 0; V.drops = null; V.lootGold = 0; V.lootItems = 0;
     V.capturesGold = 0; V.ballsUsed = 0;
+    V.supplyGold = 0; V.potionsUsed = 0; V.ballsUsedById = null;
     P.lootById = Object.create(null);
   };
   // localStorage.setItem e' SINCRONO: serializar V (ate 200 capturas + loot) a cada punhado
@@ -204,12 +229,17 @@
       let m; try { m = JSON.parse(d); } catch(e){ return; } const t = m && m.type; if (!t) return;
       V.byType[t] = (V.byType[t]||0)+1;
       switch (t) {
-        case 'field-init':      // comeco/troca de hunt
-          if (P.huntKey && m.huntKey && P.huntKey !== m.huntKey) resetSess();
+        case 'field-init': {    // comeco/troca de hunt
+          const trocou = !!(P.huntKey && m.huntKey && P.huntKey !== m.huntKey);
+          if (trocou) resetSess();
           P.huntKey = m.huntKey || P.huntKey;
-          V.hunt = { slug: m.slug || null, key: P.huntKey, since: Date.now() };
+          // MESMA hunt (reconexao/re-entrada no mapa) mantem o relogio: agora todas as taxas
+          // /h saem desse `since`, e reiniciar ele com os contadores cheios estourava o $/h.
+          const desde = (!trocou && V.hunt && V.hunt.since) ? V.hunt.since : Date.now();
+          V.hunt = { slug: m.slug || null, key: P.huntKey, since: desde };
           V.offline = false;
           break;
+        }
         case 'field':
           if (Array.isArray(m.mobs)) {
             P.shinyOnField = m.mobs.some(x => x && x.shiny && !x.dead);
@@ -232,6 +262,7 @@
         case 'catch-result':
           V.attempts++; V.ballsUsed++;
           if (m.ballName) P.lastBall = m.ballName;
+          gastaBola(m);          // baixa a bola no estoque + soma no Supply da sessao
           if (m.success !== true) {
             V.brokenBalls++; V.tot.brokenBalls++;
             if (P.shinyOnField) V.brokenShiny++;      // ball gasta COM shiny na tela
@@ -261,10 +292,17 @@
             ballsUsed:m.ballsUsed, potionsUsed:m.potionsUsed, captures:m.captures, shinyCaptures:m.shinyCaptures,
             capturesGold:m.capturesGold, supplyGold:m.supplyGold, balance:m.balance,
             goldPerHour:m.goldPerHour, xpPerHour:m.xpPerHour, killsPerHour:m.killsPerHour, drops:m.drops || [] };
+          V.anTs = Date.now();    // carimbo: sem isso nao da pra saber que o snapshot envelheceu
           break;
         case 'balls':
-          if (m.counts) V.ballCounts = m.counts;
-          if (m.catalog) V.ballCatalog = m.catalog;    // id -> nome/icone reais
+          // MERGE, nao substitui. O jogo manda `counts` so com a(s) bola(s) que mudaram —
+          // trocar o mapa inteiro por essa mensagem APAGAVA os outros tipos do painel
+          // (por isso "falta uma ball na lista" e o total nao batia com o HUD do jogo).
+          if (m.counts) V.ballCounts = Object.assign(V.ballCounts || Object.create(null), m.counts);
+          if (m.catalog) {
+            V.ballCatalog = m.catalog;                 // id -> nome/icone reais
+            m.catalog.forEach(b => { if (b && b.id != null && b.name) P.ballIdByName[String(b.name).toLowerCase()] = b.id; });
+          }
           break;
         case 'pokes': {   // time da conta: o LIDER vira a arte do painel (sprite pela dex)
           const lista = Array.isArray(m.list) ? m.list : [];

@@ -164,7 +164,11 @@
     border-radius:11px;padding:7px 11px;font-size:13.5px;font-weight:800;color:var(--cream)}
   .item.zero{border-color:rgba(226,75,53,.5);color:#ff9d8d}
   .item.uso{border-color:var(--line-strong);background:rgba(229,179,79,.1)}
-  .item img{width:20px;height:20px;object-fit:contain;image-rendering:pixelated;flex:none}
+  /* a arte da idleball preenche o PNG inteiro; as outras bolas vem com margem transparente
+     dentro do sprite — no mesmo box de 20px elas apareciam bem menores. Box maior pra todas
+     e a idle um pouco menor deixa o tamanho APARENTE igual. */
+  .item img{width:24px;height:24px;object-fit:contain;image-rendering:pixelated;flex:none}
+  .item img.idle{width:20px;height:20px}
   .item .sp{width:20px;height:20px;flex:none;background-repeat:no-repeat;background-position:center}
   .item small{font-size:9.5px;color:var(--faint);font-weight:600}
   .drops{display:flex;flex-direction:column;gap:2px;max-height:190px;overflow-y:auto}
@@ -303,21 +307,20 @@
   function painelConta (st){
     if(!st || st.ok===false) return '<div class="na">jogo não respondeu (logou?)</div>'
     let h=''
-    const L=st.live||{}, A=st.an
-    const k=(A&&A.kills!=null)?A.kills:L.kills, c=(A&&A.caught!=null)?A.caught:L.caught
-    const att=(L.caught||0)+(L.brokenBalls||0), taxa=att>0?(L.caught/att*100):null
-    let xph=null, apx=''
-    if(A&&A.xpH!=null) xph=A.xpH
-    else { const hrs=L.startTs?(Date.now()-L.startTs)/3600000:0; if(hrs>0.004){ xph=Math.round(L.xp/hrs); apx='~' } }
-    const xp=(A&&A.xp!=null)?A.xp:L.xp
+    // TUDO daqui pra baixo sai do dado vivo do WS (st.live) e das taxas calculadas pelo
+    // leitor (st.taxa). O analyzer do jogo (st.an) nao manda mais em nada: ele so chega
+    // enquanto o painel Hunt Analyzer estiver aberto no jogo e congelava a tela inteira.
+    const L=st.live||{}, T=st.taxa||{}
+    const k=L.kills, c=L.caught, xp=L.xp, xph=T.xpH
+    const att=(L.caught||0)+(L.brokenBalls||0), taxaCap=att>0?(L.caught/att*100):null
     const bola=(st.ballList&&st.ballList.length&&st.ballList[0].icon)||BALL_ICON.poke
     const pot=spriteDe(st.cura,'heal')||BALLBACK.potion
 
     let s=''
-    if(st.fin&&st.fin.loot!=null) s+=tile('t-gold','$','Loot da hunt',money(st.fin.loot),st.fin.cashH!=null?money(st.fin.cashH)+'/h':(st.fin.aprox?'estimado':''))
-    if(xph!=null) s+=tile('t-xp','XP','XP da hunt',apx+curto(xph),xp?fmt(xp)+' na sessão':'por hora')
-    if(taxa!=null) s+=tile('t-good','%','Chance de captura',taxa.toFixed(2).replace('.',',')+'%',fmt(c||0)+' de '+fmt(att)+' tentativas')
-    if(k!=null) s+=tile('t-good','espada','Derrotados',curto(k),(A&&A.killsH!=null)?fmt(A.killsH)+'/h':fmt(k))
+    if(st.fin&&st.fin.loot!=null) s+=tile('t-gold','$','Loot da hunt',money(st.fin.loot),st.fin.lootItens?fmt(st.fin.lootItens)+' itens':'')
+    if(xph!=null) s+=tile('t-xp','XP','XP da hunt',curto(xph)+'/h',xp?fmt(xp)+' na sessão':'por hora')
+    if(taxaCap!=null) s+=tile('t-good','%','Chance de captura',taxaCap.toFixed(2).replace('.',',')+'%',fmt(c||0)+' de '+fmt(att)+' tentativas')
+    if(k!=null) s+=tile('t-good','espada','Derrotados',curto(k),(T.killsH!=null)?fmt(T.killsH)+'/h':fmt(k))
     s+=tile('t-ball',bola,'Balls',curto(st.ballsTotal||0),fmt(st.ballsTotal||0)+' no total')
     s+=tile('t-gold',pot,'Potions',st.potions!=null?curto(st.potions):'—',st.usando?'usando '+esc(st.usando):(st.revives!=null?fmt(st.revives)+' revives':''))
     if(s) h+='<section class="box"><div class="bh"><span class="bt">Sessão atual</span>'+
@@ -330,9 +333,10 @@
       let b=li('+'+money(F.loot),'Loot',F.lootItens?fmt(F.lootItens)+' itens':'','pos')
       if(F.capturas) b+=li('+'+money(F.capturas),'Capturas','','pos')
       if(F.supply!=null) b+=li('−'+money(Math.abs(F.supply)),'Supply',
-        [F.bolas?fmt(F.bolas)+' bolas':'',F.potions?fmt(F.potions)+' potions':''].filter(Boolean).join(' · '),'neg')
+        [F.bolas?fmt(F.bolas)+' bolas':'',F.potions?fmt(F.potions)+' potions':'',
+         F.supplyParcial?'sem preço no catálogo':''].filter(Boolean).join(' · '),'neg')
       h+='<section class="box"><div class="bh"><span class="bt">Saldo da hunt</span>'+
-        (F.aprox?'<span class="bv est">estimado · preço de NPC</span>':'')+'</div><div class="linhas">'+b+'</div>'+
+        (F.fonte==='vivo'?'<span class="bv est">ao vivo · preço de NPC</span>':(F.aprox?'<span class="bv est">estimado</span>':''))+'</div><div class="linhas">'+b+'</div>'+
         (F.saldo!=null?'<div class="tot"><span>Loot + Capturas − Supply</span><b class="'+(F.saldo<0?'neg':'pos')+'">'+
           (F.saldo<0?'':'+')+money(F.saldo)+'</b></div>':'')+
         (F.cashH!=null?'<div class="ph2"><span>por hora</span><b>'+(F.cashH<0?'':'+')+money(F.cashH)+'/h</b></div>':'')+'</section>'
@@ -356,12 +360,20 @@
     }
 
     // bolas e cura, com o sprite do jogo
-    const item=(src,qty,nome,extra)=>'<span class="item'+(qty===0?' zero':'')+(extra||'')+'" title="'+esc(nome)+'">'+
-      (src?'<img src="'+esc(url(src))+'" alt="">':'<small>'+esc(nome)+'</small>')+fmt(qty)+'</span>'
-    let bolas=''
-    if(Array.isArray(st.ballList)&&st.ballList.length) st.ballList.forEach(b=>{ bolas+=item(b.icon||BALL_ICON[b.key],b.qty,b.name) })
-    else { const bl=st.balls||{}; BALL_ORDER.forEach(x=>{ if(bl[x]!=null) bolas+=item(BALL_ICON[x],bl[x],BALL_LABELS[x]||x) }) }
-    if(bolas) h+='<div class="sec"><div class="sech">Bolas <em>'+fmt(st.ballsTotal||0)+' no total</em></div><div class="items">'+bolas+'</div></div>'
+    const item=(src,qty,nome,extra,ic)=>'<span class="item'+(qty===0?' zero':'')+(extra||'')+'" title="'+esc(nome)+'">'+
+      (src?'<img class="'+(ic||'')+'" src="'+esc(url(src))+'" alt="">':'<small>'+esc(nome)+'</small>')+fmt(qty)+'</span>'
+    // SO O ESSENCIAL: a bola de maior quantidade + a Idle Ball (sempre, mesmo zerada — e' a
+    // que o auto-catch queima). O total do cabecalho continua somando TODOS os tipos.
+    let bolas='', escondidas=0
+    if(Array.isArray(st.ballList)&&st.ballList.length){
+      const lista=st.ballList                      // ja vem ordenada por quantidade (cdp.js)
+      const idle=lista.filter(b=>b.idle), maior=lista.filter(b=>!b.idle).slice(0,1)
+      const ver=(maior.concat(idle)).length?maior.concat(idle):lista.slice(0,1)
+      escondidas=lista.length-ver.length
+      ver.forEach(b=>{ bolas+=item(b.icon||BALL_ICON[b.key],b.qty,b.name,'',b.idle?'idle':'') })
+    } else { const bl=st.balls||{}; BALL_ORDER.forEach(x=>{ if(bl[x]!=null) bolas+=item(BALL_ICON[x],bl[x],BALL_LABELS[x]||x,'',x==='idle'?'idle':'') }) }
+    if(bolas) h+='<div class="sec"><div class="sech">Bolas <em>'+fmt(st.ballsTotal||0)+' no total'+
+      (escondidas>0?' · +'+escondidas+' tipo'+(escondidas>1?'s':''):'')+'</em></div><div class="items">'+bolas+'</div></div>'
     if(Array.isArray(st.cura)&&st.cura.length){
       const its=st.cura.map(p=>item(p.icon,p.qty,p.name,p.name===st.usando?' uso':'')).join('')
       h+='<div class="sec"><div class="sech">Cura <em>'+
