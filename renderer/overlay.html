@@ -158,10 +158,16 @@
   // (22/07/2026). A arte do jogo e diferente da PokeAPI - o Golem shiny daqui e ROXO, o da
   // PokeAPI e rosado. Local: funciona offline e e o desenho que o dono ve no jogo.
   const SPR = './sprites/shiny/'
+  // Variantes de hunt (Enraged Typhlosion, Ancient Marowak...) usam IDs proprios do jogo,
+  // 10501-10547. Recortadas do marker-atlas do Mapa e nomeadas pelo mesmo id que o WS manda.
+  const SPR_HUNT = './sprites/hunt/'
   const fmt = (n)=>Number(n||0).toLocaleString('pt-BR')
   const money = (n)=>(n<0?'-$':'$')+Math.abs(Number(n||0)).toLocaleString('pt-BR')
   const esc = (s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
-  const url = (s)=> !s ? null : (/^(https?:|data:)/.test(s) ? s : (s.charAt(0)==='/' ? GAME+s : GAME+'/assets/items/'+s))
+  // ATENCAO: nome solto (ex "ultraball.png") = item do jogo e vira /assets/items/<nome>.
+  // Por isso caminho LOCAL precisa comecar com "./" e sair intacto - senao ./sprites/hunt/
+  // 10522.png virava /assets/items/sprites/hunt/10522.png e a imagem quebrava (0x0).
+  const url = (s)=> !s ? null : (/^(https?:|data:|\.\/)/.test(s) ? s : (s.charAt(0)==='/' ? GAME+s : GAME+'/assets/items/'+s))
   const ehImg = (s)=> !!s && (/^(https?:|data:)/.test(s) || s.indexOf('/')>=0)
   const POKE = GAME+'/assets/markitems/pokeball.png'
   const BACK = { potion: GAME+'/assets/markitems/ultra_potion.png', revive: GAME+'/assets/markitems/revive.png' }
@@ -196,11 +202,13 @@
   }
   // icone dos Lendarios = POKEMON DA HUNT (o mob que esta na tela agora, via `field` do WS).
   // Fora da hunt nao ha mob: cai no ultimo lendario capturado e, sem ele, na estrela.
-  // ATENCAO: o jogo usa IDs PROPRIOS pras variantes - "Enraged Typhlosion" e speciesId 10522,
-  // e a PokeAPI so vai ate ~1025 (10522 da 404). Entao so pedimos sprite quando o id cabe na
-  // PokeAPI; para as variantes fica o simbolo, ate termos os sprites do proprio jogo.
+  // Onde buscar o desenho de cada especie:
+  //  id >= 10000 -> variante de hunt: sprite do jogo (a PokeAPI nao tem, so vai ate ~1025)
+  //  shiny       -> sprite shiny do jogo (a arte daqui e outra: o Golem shiny e ROXO)
+  //  resto       -> PokeAPI
   const daPokeApi = (id)=> id!=null && id > 0 && id < 10000
-  const spriteDe1 = (id, shiny)=> shiny ? SPR+id+'.png' : (daPokeApi(id) ? DEX+id+'.png' : null)
+  const spriteDe1 = (id, shiny)=> id == null ? null
+    : (id >= 10000 ? SPR_HUNT+id+'.png' : (shiny ? SPR+id+'.png' : (daPokeApi(id) ? DEX+id+'.png' : null)))
   const lendSprite = (st)=>{
     const hm = st && st.live && st.live.huntMob
     if (hm && hm.speciesId != null) { const s = spriteDe1(hm.speciesId, hm.shiny); if (s) return s }
