@@ -30,7 +30,9 @@
     pointer-events:none;-webkit-mask-image:linear-gradient(90deg,transparent,#000 55%)}
   .h{display:flex;align-items:center;gap:8px;padding-bottom:7px;margin-bottom:7px;
     border-bottom:1px solid var(--line);position:relative;z-index:2}
-  .n{font-family:'Cinzel',Georgia,serif;font-weight:800;font-size:14px;letter-spacing:.04em;
+  /* Inter, NAO Cinzel: Cinzel e uma fonte de capitulares romanas, nao tem minusculas -
+     o nick "ekoo_" saia desenhado como "EKOO_". Aqui o nick tem que sair como o dono digitou. */
+  .n{font-family:Inter,system-ui,sans-serif;font-weight:700;font-size:13.5px;letter-spacing:.01em;
     flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
     text-shadow:0 2px 8px rgba(0,0,0,.8)}
   .b{font-size:8.5px;font-weight:800;padding:3px 8px;border-radius:99px;text-transform:uppercase;letter-spacing:.06em}
@@ -40,6 +42,11 @@
   .r+.r{border-top:1px solid rgba(216,138,74,.09)}
   .r .i{width:19px;height:19px;flex:none;display:grid;place-items:center}
   .r .i img{width:19px;height:19px;object-fit:contain;image-rendering:pixelated}
+  /* O sprite da bola (markitems/pokeball.png) e 32x32 mas o desenho ocupa so 15x15 - 53% do
+     arquivo e transparente. Com contain em 19px a bola saia com 8,9px de altura contra os 19px
+     do potion/revive (13x21 e 16x22, sem margem): parecia menor que metade. Compensamos dando
+     uma caixa maior so pra ela, com margem negativa pra nao empurrar a linha. */
+  .r .i.ball img{width:40px;height:40px;margin:-10px}
   .r .i span{font-size:13px;line-height:1;color:var(--gold)}
   .r .l{flex:1;min-width:0;font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
   .r .v{font-family:'Cinzel',serif;font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;
@@ -79,7 +86,8 @@
     if(!st.hunt||!st.hunt.seen) return { badge:'b-warn', txt:'Fora' }
     return { badge:'b-ok', txt:'Hunt' }
   }
-  const linha = (src,lbl,val,cls)=>'<div class="r '+(cls||'')+'"><span class="i">'+
+  // icls: classe extra do icone (ver .r .i.ball no CSS - compensa a margem do sprite da bola)
+  const linha = (src,lbl,val,cls,icls)=>'<div class="r '+(cls||'')+'"><span class="i '+(icls||'')+'">'+
     (ehImg(src)?'<img src="'+esc(url(src))+'" alt="">':'<span>'+(src||'')+'</span>')+
     '</span><span class="l">'+lbl+'</span><span class="v">'+val+'</span></div>'
 
@@ -104,7 +112,7 @@
         'onerror="this.onerror=null;this.src=\''+DEX+dex+'.png\'" alt="">':'')+
       '<div class="h"><span class="n">'+esc(nameOf(NUM))+'</span>'+
         '<span class="b '+a.badge+'">'+a.txt+'</span></div><div class="rows">'+
-      linha(bola,'Pokébola',fmt(st.ballsTotal||0), st.ballsTotal===0?'zero':(st.ballsTotal<lowBall()?'warn':''))+
+      linha(bola,'Pokébola',fmt(st.ballsTotal||0), st.ballsTotal===0?'zero':(st.ballsTotal<lowBall()?'warn':''), 'ball')+
       linha(pot,'Potion',st.potions!=null?fmt(st.potions):'—', st.potions===0?'zero':'')+
       linha(rev,'Revive',st.revives!=null?fmt(st.revives):'—', st.revives===0?'zero':'')+
       linha('★','Lendários',fmt(lendarios(st)))+
