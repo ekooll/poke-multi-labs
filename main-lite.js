@@ -126,7 +126,6 @@ function openAccount (num) {
   wc.on('focus', () => { if (focusNum !== num) { focusNum = num; layout(); } });
   wc.setWindowOpenHandler(({ url }) => ({ action: 'allow', overrideBrowserWindowOptions: { width: 520, height: 680 } }));
   wc.on('dom-ready', () => { slot._tk = null; layout(); applyFps(wc); });
-  if (overlayOn) abreOverlay(slot);
   const onNav = (_e, url) => { slot.connected = /\/play|\/game/.test(url) && !/\/login|\/register/.test(url); emitState(); };
   wc.on('did-navigate', onNav);
   wc.on('did-navigate-in-page', onNav);
@@ -135,12 +134,19 @@ function openAccount (num) {
   wc.loadURL(sessions[num] ? GAME + '/play' : LOGIN);
   slots.push(slot);
   win.contentView.addChildView(view);
+  // O CARD TEM QUE ENTRAR DEPOIS DA TELA DO JOGO. z-order aqui e a ordem de addChildView:
+  // com o abreOverlay antes do addChildView(view), o jogo era desenhado POR CIMA do card e
+  // ele nunca aparecia no boot - so depois de desligar/ligar o botao Cards, que recria os
+  // overlays por ultimo. Era esse o bug do "Cards: ON sem card na tela".
+  if (overlayOn) abreOverlay(slot);
   return slot;
 }
 // ---- OVERLAY por conta: o card flutua SOBRE a tela daquela conta ----
 // Uma WebContentsView transparente por slot, encostada no canto de cima da tela dela.
 // Fica pequena de proposito: a area do card nao recebe clique do jogo.
-const OV_W = 268, OV_H = 196;
+// tamanho PADRAO do card (o dono muda arrastando o canto - card:size guarda por conta).
+// Subiu de 268x196 quando o card ganhou avatar, subtitulo do poke, barra de HP e o grip.
+const OV_W = 292, OV_H = 258, OV_PAD = 10;
 let overlayOn = true;
 function abreOverlay (s) {
   if (s.ov) return s.ov;
@@ -211,7 +217,20 @@ function layout () {
       const k = vis.indexOf(s);
       if (k < 0 || !overlayOn) return s.ov.setBounds(HIDDEN);
       const r = rects[k];
-      s.ov.setBounds({ x: r.x, y: r.y, width: Math.min(OV_W, r.width), height: Math.min(OV_H, r.height) });
+      // tamanho: o que o dono deixou no resize (card:size), nunca maior que a tela da conta
+      const w = Math.min(s.ovW || OV_W, r.width), h = Math.min(s.ovH || OV_H, r.height);
+      // posicao: o quanto ele arrastou (card:move), preso dentro da tela daquela conta pra
+      // o card nunca escapar pro vizinho nem sumir fora da area visivel
+      // sem arrasto, o card nasce com um respiro do canto (antes esse respiro era o
+      // margin:10px do CSS; agora o card ocupa 100% da view pra o resize funcionar)
+      const px = s.ovDX == null ? OV_PAD : s.ovDX, py = s.ovDY == null ? OV_PAD : s.ovDY;
+      const dx = Math.max(0, Math.min(px, Math.max(0, r.width  - w)));
+      const dy = Math.max(0, Math.min(py, Math.max(0, r.height - h)));
+      s._rect = r;              // guardado pro card:move poder limitar o arrasto na origem
+      s.ovDX = dx; s.ovDY = dy; // grava JA limitado: senao o offset crescia sem teto ao
+      s.ovW = w; s.ovH = h;     // arrastar pra fora e o card "travava" ate desfazer tudo
+      s.ov.setBounds({ x: Math.round(r.x + dx), y: Math.round(r.y + dy),
+                       width: Math.round(w), height: Math.round(h) });
     });
   }
   // fps por tela (so re-injeta quando o valor muda) — ver a tabela FPS la em cima
@@ -330,6 +349,43 @@ ipcMain.handle('lite:overlay', () => {
   return overlayOn;
 });
 ipcMain.handle('lite:overlay-state', () => overlayOn);
+
+// ---------------- card: arrastar, redimensionar e zerar ----------------
+// O card e uma WebContentsView, entao quem move e o main: o renderer so manda o quanto o
+// mouse andou (em px de TELA, nao da pagina - a view se move junto e o delta local mentiria).
+const acha = (num) => slots.find(x => x.num === num);
+ipcMain.on('card:move', (_e, num, dx, dy) => {
+  const s = acha(num); if (!s) return;
+  const r = s._rect, w = s.ovW || OV_W, h = s.ovH || OV_H;
+  const maxX = r ? Math.max(0, r.width - w) : Infinity;
+  const maxY = r ? Math.max(0, r.height - h) : Infinity;
+  // limita JA na acumulacao. Antes so limitava ao desenhar: arrastar pra fora inflava o
+  // offset (ex: 4000px), e pra mover de novo era preciso desfazer tudo = parecia travado.
+  s.ovDX = Math.max(0, Math.min(maxX, (s.ovDX == null ? OV_PAD : s.ovDX) + (dx || 0)));
+  s.ovDY = Math.max(0, Math.min(maxY, (s.ovDY == null ? OV_PAD : s.ovDY) + (dy || 0)));
+  layout();
+});
+ipcMain.on('card:size', (_e, num, dw, dh) => {
+  const s = acha(num); if (!s) return;
+  // minimo 230x170: abaixo disso o cabecalho + grip nao cabiam e o grip saia da tela -
+  // o card ficava sem AREA DE ARRASTO, ou seja, preso onde estava.
+  s.ovW = Math.max(230, Math.min(620, (s.ovW || OV_W) + (dw || 0)));
+  s.ovH = Math.max(170, Math.min(680, (s.ovH || OV_H) + (dh || 0)));
+  layout();
+});
+// volta o card pro canto, no tamanho padrao (duplo-clique no grip)
+ipcMain.on('card:home', (_e, num) => {
+  const s = acha(num); if (!s) return;
+  s.ovDX = null; s.ovDY = null; s.ovW = OV_W; s.ovH = OV_H;   // null = volta pro respiro padrao
+  layout();
+});
+// lixeira: zera a sessao da conta igual o jogo faz na troca de hunt (window.__vpReset vem
+// do vperts-ext/content.js). Historico de capturas/fotos NAO e apagado.
+ipcMain.handle('card:reset', async (_e, num) => {
+  const s = acha(num); if (!s) return false;
+  try { return !!(await s.view.webContents.executeJavaScript('!!(window.__vpReset && window.__vpReset())')); }
+  catch { return false; }
+});
 
 // ---------------- window.ml (contrato da sidebar original) ----------------
 ipcMain.handle('get-state', () => stateObj());

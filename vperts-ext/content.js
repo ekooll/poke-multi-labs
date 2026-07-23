@@ -222,6 +222,10 @@
   let lastSave = 0, saveT = null;
   const flush = () => { saveT = null; lastSave = Date.now(); try { localStorage.setItem('__vperts', JSON.stringify(V)); } catch(e){} };
   const save = () => { if (saveT) return; saveT = setTimeout(flush, Math.max(0, 1000 - (Date.now() - lastSave))); };
+  // Reset manual (botao de lixeira do card): zera EXATAMENTE o que a troca de hunt zera,
+  // sem precisar esperar o field-init. Historico (capturas, fotos, melhor) fica de pe.
+  // Grava na hora - se o app fechasse antes do save de 1s, o reset se perdia.
+  window.__vpReset = () => { resetSess(); flush(); return true; };
   window.WebSocket = function (url, protos) {
     const ws = protos !== undefined ? new Orig(url, protos) : new Orig(url);
     ws.addEventListener('message', (ev) => {
@@ -246,6 +250,19 @@
             // campo COM mob = area de caca. Na cidade/mercado nao vem mob nenhum — e' esse
             // carimbo que diz se a conta esta mesmo cacando (o texto da tela mentia).
             if (m.mobs.length) V.lastFieldTs = Date.now();
+            // POKEMON DA HUNT: o mob da tela vira o icone do card. MEDIDO no WS (22/07): o mob
+            // NAO tem `name` - vem { row, col, facing, slot, speciesId, hp, maxHp, dead,
+            // respawning, shiny }. Por isso a chave e o speciesId, e o nome sai do slug.
+            // Conta o mais frequente (nao o primeiro) pra nao trocar de cara a cada respawn.
+            // Mobs mortos entram na conta: durante o respawn TODOS ficam dead e o icone sumiria.
+            const cont = Object.create(null); let topo = null, topoN = 0;
+            for (const x of m.mobs) {
+              if (!x || x.speciesId == null) continue;
+              const k = x.speciesId; cont[k] = (cont[k] || 0) + 1;
+              if (cont[k] > topoN) { topoN = cont[k]; topo = x; }
+            }
+            if (topo) V.huntMob = { speciesId: topo.speciesId, shiny: !!topo.shiny,
+              nome: (V.hunt && V.hunt.slug) ? V.hunt.slug.replace(/_/g, ' ') : null };
           }
           break;
         case 'field-kill':
@@ -277,7 +294,10 @@
           V.capturesGold += (p.sellValue || 0);        // entra no saldo, como no painel do jogo
           if (p.shiny) { V.shiniesCaught++; V.tot.shiniesCaught++; V.shinies++; V.tot.shinies++; }
           V.lastCatch = { name:p.name, quality:p.quality, ivTotal:p.ivTotal, power:p.power, shiny:!!p.shiny, sellValue:p.sellValue, ball:P.lastBall };
-          V.catches.push({ name:p.name, quality:p.quality, ivTotal:p.ivTotal, shiny:!!p.shiny });
+          // speciesId junto: e ele que permite mostrar o SPRITE da captura (card e dashboard).
+          // Capturas ja gravadas antes desta versao nao tem o campo - quem exibe cai no icone
+          // generico, entao nao quebra nada.
+          V.catches.push({ name:p.name, quality:p.quality, ivTotal:p.ivTotal, shiny:!!p.shiny, speciesId:p.speciesId });
           if (V.catches.length > 200) V.catches.shift();
           if (!V.bestCatch || (p.quality||0) > (V.bestCatch.quality||0)) V.bestCatch = { name:p.name, quality:p.quality, ivTotal:p.ivTotal };
           break;

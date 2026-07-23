@@ -27,6 +27,8 @@ files:
   # OBRIGATORIO: as 6 telas usam ./fonts/fonts.css (Inter/Cinzel locais). Sem esta linha
   # o portable sai com a fonte do sistema e o visual quebra - e so no exe, nao no dev.
   - renderer/fonts/**/*
+  # sprites shiny extraidos do proprio jogo (ver renderer/sprites/LEIA.md)
+  - renderer/sprites/**/*
   - node_modules/ws/**/*
 win:
   target: portable

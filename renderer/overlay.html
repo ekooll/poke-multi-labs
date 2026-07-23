@@ -6,7 +6,9 @@
 <link rel="stylesheet" href="./fonts/fonts.css"><!-- fontes locais: 1 overlay por conta, eram 4 fetches -->
 <style>
   /* Card que flutua SOBRE a tela do jogo daquela conta (um por conta).
-     Fundo transparente: só o card aparece, no estilo do site. */
+     Fundo transparente: só o card aparece, no estilo do site.
+     O card ocupa 100% da view: quem define tamanho/posição é o main (card:size / card:move),
+     senão o resize do usuário não teria efeito nenhum. */
   :root{
     --line:rgba(216,138,74,.2); --line-strong:rgba(229,179,79,.45);
     --gold:#e5b34f; --gold-soft:#d98350; --cream:#f7eee7;
@@ -16,43 +18,106 @@
   html,body{margin:0;height:100%;background:transparent;overflow:hidden;
     color:var(--cream);font-family:Inter,system-ui,sans-serif;
     -webkit-user-select:none;cursor:default}
-  .card{position:relative;overflow:hidden;margin:10px;border:1px solid var(--line-strong);
-    border-radius:15px;padding:10px 12px 11px;
+  /* #app precisa esticar: sem isso o .card (height:100%) herdava a altura do CONTEUDO em vez
+     da altura da view, e o resize do usuario nao mudava nada de verdade. */
+  #app{height:100%}
+  .card{position:relative;overflow:hidden;height:100%;display:flex;flex-direction:column;
+    border:1px solid var(--line-strong);border-radius:15px;padding:9px 11px 3px;
     background:linear-gradient(160deg,rgba(30,18,16,.93),rgba(9,6,5,.94));
     box-shadow:0 14px 40px rgba(0,0,0,.7),0 0 0 1px rgba(229,179,79,.1);
     backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
   /* cantos ornamentados, como as molduras do site */
-  .card::before,.card::after{content:"";position:absolute;width:14px;height:14px;
-    border-color:var(--gold);opacity:.6;pointer-events:none}
-  .card::before{top:5px;left:5px;border-top:2px solid;border-left:2px solid;border-top-left-radius:7px}
-  .card::after{bottom:5px;right:5px;border-bottom:2px solid;border-right:2px solid;border-bottom-right-radius:7px}
-  .art{position:absolute;right:6px;top:-6px;height:74px;opacity:.5;image-rendering:pixelated;
-    pointer-events:none;-webkit-mask-image:linear-gradient(90deg,transparent,#000 55%)}
-  .h{display:flex;align-items:center;gap:8px;padding-bottom:7px;margin-bottom:7px;
-    border-bottom:1px solid var(--line);position:relative;z-index:2}
+  .card::before{content:"";position:absolute;width:14px;height:14px;border-color:var(--gold);
+    opacity:.6;pointer-events:none;top:5px;left:5px;border-top:2px solid;border-left:2px solid;border-top-left-radius:7px}
+  /* marca d'agua: pokebola desenhada em SVG (vetorial e embutida). Nao usei imagem de CDN
+     porque o card e redimensionavel - um PNG de 640px ficaria borrado ao crescer - e porque
+     app desktop nao deve depender de rede pra desenhar a propria UI (mesma razao das fontes).
+     Opacidade baixissima de proposito: e textura, nao ilustracao. */
+  .card::after{content:"";position:absolute;right:-30px;bottom:-34px;width:176px;height:176px;
+    pointer-events:none;z-index:0;opacity:.06;
+    background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><g fill='none' stroke='%23e5b34f' stroke-width='5'><circle cx='50' cy='50' r='45'/><path d='M5 50h30M65 50h30'/><circle cx='50' cy='50' r='15'/></g></svg>") center/contain no-repeat}
+
+  /* ---- cabecalho: avatar redondo + nick/nv + acoes ---- */
+  /* flex:none no cabecalho, no HP e no grip: sem isso, ao encolher o card o conteudo
+     empurrava o grip pra fora do overflow:hidden e o card ficava SEM area de arrasto. */
+  .h{display:flex;align-items:center;gap:9px;padding-bottom:7px;margin-bottom:6px;flex:none;
+    border-bottom:1px solid var(--line);position:relative;z-index:2;cursor:grab}
+  .h:active{cursor:grabbing}
+  .h .acts{cursor:default}
+  .av{width:38px;height:38px;flex:none;border-radius:50%;position:relative;
+    border:1px solid var(--line-strong);background:radial-gradient(circle at 50% 42%,#2a1a14,#0b0706);
+    box-shadow:inset 0 0 12px rgba(0,0,0,.7),0 2px 8px rgba(0,0,0,.5);
+    display:grid;place-items:center;overflow:hidden}
+  .av img{width:34px;height:34px;object-fit:contain;image-rendering:pixelated;
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,.6))}
+  .who{flex:1;min-width:0}
   /* Inter, NAO Cinzel: Cinzel e uma fonte de capitulares romanas, nao tem minusculas -
-     o nick "ekoo_" saia desenhado como "EKOO_". Aqui o nick tem que sair como o dono digitou. */
+     o nick "ekoo_" saia desenhado como "EKOO_". O nick tem que sair como o dono digitou. */
   .n{font-family:Inter,system-ui,sans-serif;font-weight:700;font-size:13.5px;letter-spacing:.01em;
-    flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    display:flex;align-items:baseline;gap:6px;min-width:0}
+  .n .nick{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
     text-shadow:0 2px 8px rgba(0,0,0,.8)}
+  .n .tl{flex:none;font-size:9.5px;font-weight:800;letter-spacing:.06em;color:var(--gold);
+    background:rgba(229,179,79,.12);border:1px solid rgba(229,179,79,.28);
+    border-radius:99px;padding:1px 6px;text-transform:uppercase}
+  .sub{margin-top:2px;font-size:10px;font-weight:600;color:var(--muted);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sub .sh{color:var(--gold)}
+  .sub .lv{color:var(--gold-soft);font-weight:800}
+  .acts{display:flex;align-items:center;gap:5px;flex:none}
   .b{font-size:8.5px;font-weight:800;padding:3px 8px;border-radius:99px;text-transform:uppercase;letter-spacing:.06em}
   .b-ok{color:#0c1a10;background:var(--good)} .b-warn{color:#1a1405;background:var(--mid)} .b-down{color:#fff;background:#e24b35}
-  .rows{position:relative;z-index:2;display:flex;flex-direction:column}
+  .ico{width:21px;height:21px;flex:none;display:grid;place-items:center;cursor:pointer;
+    border:1px solid var(--line);border-radius:7px;background:rgba(255,255,255,.04);
+    color:var(--muted);font-size:11px;line-height:1;transition:.14s}
+  .ico:hover{color:var(--bad);border-color:rgba(255,107,85,.5);background:rgba(255,107,85,.1)}
+  .ico.ok{color:var(--good);border-color:rgba(79,196,122,.5)}
+
+  /* ---- linhas de numeros ---- */
+  .rows{position:relative;z-index:2;display:flex;flex-direction:column;flex:1 1 auto;min-height:0;overflow-y:auto}
+  .rows::-webkit-scrollbar{width:0}
   .r{display:flex;align-items:center;gap:8px;padding:3px 0}
   .r+.r{border-top:1px solid rgba(216,138,74,.09)}
   .r .i{width:19px;height:19px;flex:none;display:grid;place-items:center}
   .r .i img{width:19px;height:19px;object-fit:contain;image-rendering:pixelated}
   /* O sprite da bola (markitems/pokeball.png) e 32x32 mas o desenho ocupa so 15x15 - 53% do
      arquivo e transparente. Com contain em 19px a bola saia com 8,9px de altura contra os 19px
-     do potion/revive (13x21 e 16x22, sem margem): parecia menor que metade. Compensamos dando
-     uma caixa maior so pra ela, com margem negativa pra nao empurrar a linha. */
+     do potion/revive (13x21 e 16x22, sem margem): parecia menor que metade. Caixa maior com
+     margem negativa iguala a altura desenhada sem empurrar a linha. */
   .r .i.ball img{width:40px;height:40px;margin:-10px}
   .r .i span{font-size:13px;line-height:1;color:var(--gold)}
   .r .l{flex:1;min-width:0;font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-  .r .v{font-family:'Cinzel',serif;font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;
+  /* Inter, nao Cinzel: numero de painel pede fonte de interface. Cinzel e display de
+     capitulares romanas - a serifa pesa em 14px e ela nao traz a feature `tnum`, entao o
+     tabular-nums nao pegava e o valor MUDAVA DE LARGURA a cada atualizacao (13.541 -> 13.432
+     dancava na tela). Inter tem tnum de verdade: as colunas ficam firmes. */
+  .r .v{font-family:Inter,system-ui,sans-serif;font-weight:700;font-size:14px;
+    font-variant-numeric:tabular-nums;letter-spacing:-.01em;
     white-space:nowrap;text-shadow:0 2px 8px rgba(0,0,0,.8)}
   .r.zero .v{color:var(--bad)} .r.warn .v{color:var(--mid)}
   .v.pos{color:var(--good)} .v.neg{color:var(--bad)}
+
+  /* ---- hp do time ---- */
+  .hp{position:relative;z-index:2;margin-top:6px;flex:none}
+  .hpbar{height:5px;border-radius:99px;background:rgba(255,255,255,.09);overflow:hidden}
+  .hpfill{height:100%;border-radius:99px;background:linear-gradient(90deg,#4fc47a,#7ee6a0);
+    transition:width .3s ease}
+  .hpfill.mid{background:linear-gradient(90deg,#e0a93c,#f5cd6b)}
+  .hpfill.low{background:linear-gradient(90deg,#e24b35,#ff8a76)}
+  .hpcap{margin-top:3px;font-size:9px;font-weight:600;color:var(--faint);letter-spacing:.04em}
+
+  /* ---- grip: arrastar o card (igual ao modal do dashboard) ---- */
+  .grip{position:relative;z-index:3;height:14px;flex:none;display:grid;place-items:center;
+    cursor:grab;margin-top:2px}
+  .grip:active{cursor:grabbing}
+  .grip i{display:block;width:26px;height:2px;border-radius:2px;background:var(--faint);
+    box-shadow:0 4px 0 var(--faint),0 -4px 0 var(--faint);opacity:.55;transition:.14s}
+  .grip:hover i{opacity:1;background:var(--gold-soft);box-shadow:0 4px 0 var(--gold-soft),0 -4px 0 var(--gold-soft)}
+  /* canto de redimensionar */
+  .rz{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;z-index:4}
+  .rz::after{content:"";position:absolute;right:4px;bottom:4px;width:7px;height:7px;
+    border-right:2px solid var(--faint);border-bottom:2px solid var(--faint);opacity:.6;border-radius:0 0 3px 0}
+  .rz:hover::after{border-color:var(--gold);opacity:1}
   .off{padding:14px;text-align:center;color:var(--faint);font-style:italic;font-size:11px}
 </style>
 </head>
@@ -62,6 +127,10 @@
   const NUM = +(new URLSearchParams(location.search).get('num') || 0)
   const GAME = 'https://poke.idleworld.online'
   const DEX = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/'
+  // Sprites SHINY do proprio Poke Idle, extraidos dos canvas do painel "Todos os Shinys"
+  // (22/07/2026). A arte do jogo e diferente da PokeAPI - o Golem shiny daqui e ROXO, o da
+  // PokeAPI e rosado. Local: funciona offline e e o desenho que o dono ve no jogo.
+  const SPR = './sprites/shiny/'
   const fmt = (n)=>Number(n||0).toLocaleString('pt-BR')
   const money = (n)=>(n<0?'-$':'$')+Math.abs(Number(n||0)).toLocaleString('pt-BR')
   const esc = (s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
@@ -72,7 +141,21 @@
   const nameOf = (n)=>{ try{ return (JSON.parse(localStorage.getItem('pml_names')||'{}'))[n] || ('Conta '+n) }catch{ return 'Conta '+n } }
   const lowBall = ()=>parseInt(localStorage.getItem('pml_lowball')||'500')||500
   const LEND = 1.7
-  const lendarios = (st)=>{ const c=st&&st.live&&st.live.catches; return Array.isArray(c)?c.filter(x=>(x.quality||0)>=LEND).length:0 }
+  const lends = (st)=>{ const c=st&&st.live&&st.live.catches; return Array.isArray(c)?c.filter(x=>(x.quality||0)>=LEND):[] }
+  const lendarios = (st)=>lends(st).length
+  // icone dos Lendarios = POKEMON DA HUNT (o mob que esta na tela agora, via `field` do WS).
+  // Fora da hunt nao ha mob: cai no ultimo lendario capturado e, sem ele, na estrela.
+  // ATENCAO: o jogo usa IDs PROPRIOS pras variantes - "Enraged Typhlosion" e speciesId 10522,
+  // e a PokeAPI so vai ate ~1025 (10522 da 404). Entao so pedimos sprite quando o id cabe na
+  // PokeAPI; para as variantes fica o simbolo, ate termos os sprites do proprio jogo.
+  const daPokeApi = (id)=> id!=null && id > 0 && id < 10000
+  const spriteDe1 = (id, shiny)=> shiny ? SPR+id+'.png' : (daPokeApi(id) ? DEX+id+'.png' : null)
+  const lendSprite = (st)=>{
+    const hm = st && st.live && st.live.huntMob
+    if (hm && hm.speciesId != null) { const s = spriteDe1(hm.speciesId, hm.shiny); if (s) return s }
+    const l=lends(st); for(let i=l.length-1;i>=0;i--){ const s=spriteDe1(l[i].speciesId, l[i].shiny); if(s) return s }
+    return null
+  }
   const spriteDe = (lista,cat)=>{ if(!Array.isArray(lista))return null
     const c=lista.filter(x=>x.tipo===cat&&x.icon).sort((a,b)=>b.qty-a.qty)[0]; return c?c.icon:null }
 
@@ -91,6 +174,9 @@
     (ehImg(src)?'<img src="'+esc(url(src))+'" alt="">':'<span>'+(src||'')+'</span>')+
     '</span><span class="l">'+lbl+'</span><span class="v">'+val+'</span></div>'
 
+  const rodape = '<div class="grip" id="grip" title="Arraste pra mover · duplo-clique volta pro canto"><i></i></div>'+
+                 '<div class="rz" id="rz" title="Arraste pra redimensionar"></div>'
+
   async function tick (){
     if(document.hidden) return
     let st=null
@@ -99,25 +185,97 @@
     const a=alertOf(st)
     if(!st||st.ok===false){
       document.getElementById('app').innerHTML='<div class="card"><div class="h">'+
-        '<span class="n">'+esc(nameOf(NUM))+'</span><span class="b '+a.badge+'">'+a.txt+'</span></div>'+
-        '<div class="off">sem dados ainda</div></div>'
-      return
+        '<div class="who"><div class="n"><span class="nick">'+esc(nameOf(NUM))+'</span></div></div>'+
+        '<span class="b '+a.badge+'">'+a.txt+'</span></div>'+
+        '<div class="off">sem dados ainda</div>'+rodape+'</div>'
+      liga(); return
     }
-    const dex = st.lider && st.lider.speciesId
+    const lid = st.lider || null
+    const dex = lid && lid.speciesId
+    // Ordem do avatar: sprite do PROPRIO JOGO (shiny) -> PokeAPI animada -> PokeAPI estatica.
+    // O onerror encadeado dispensa manter uma lista de quais ids temos localmente.
+    const via = (lid && lid.shiny) ? 'shiny/' : ''
+    const gif = dex ? DEX+'versions/generation-v/black-white/animated/'+via+dex+'.gif' : ''
+    const png = dex ? DEX+via+dex+'.png' : ''
+    const doJogo = (dex && lid && lid.shiny) ? SPR+dex+'.png' : ''
     const bola=(st.ballList&&st.ballList.length&&st.ballList[0].icon)||POKE
     const pot=spriteDe(st.cura,'heal')||BACK.potion, rev=spriteDe(st.cura,'revive')||BACK.revive
     const saldo=st.fin&&st.fin.saldo
+    // HP do time: o WS manda o do lider; sem ele cai pro que o DOM leu
+    const hp=(lid&&lid.hp!=null)?lid.hp:st.hp, hpMax=(lid&&lid.maxHp)||st.hpMax
+    const pct=(hp!=null&&hpMax)?Math.max(0,Math.min(100,hp/hpMax*100)):null
+    const hpCls = pct==null?'':(pct<=25?'low':(pct<=55?'mid':''))
+    // nivel do treinador: so aparece quando o leitor conseguiu ler (com bridge vivo o DOM
+    // nao e varrido - ver cdp.js). Sem valor, some em vez de mostrar "nv null".
+    const tl = (st.level!=null) ? '<span class="tl">nv '+fmt(st.level)+'</span>' : ''
+    // ✨ e o mesmo simbolo que o jogo usa pra shiny (botao "✨ Shiny" no Log de Capturas)
+    const sub = lid && lid.name
+      ? '<div class="sub">'+(lid.shiny?'<span class="sh">✨ </span>':'')+esc(lid.name)+
+        (lid.level?' <span class="lv">nv '+fmt(lid.level)+'</span>':'')+'</div>'
+      : ''
     document.getElementById('app').innerHTML='<div class="card">'+
-      (dex?'<img class="art" src="'+DEX+'versions/generation-v/black-white/animated/'+dex+'.gif" '+
-        'onerror="this.onerror=null;this.src=\''+DEX+dex+'.png\'" alt="">':'')+
-      '<div class="h"><span class="n">'+esc(nameOf(NUM))+'</span>'+
-        '<span class="b '+a.badge+'">'+a.txt+'</span></div><div class="rows">'+
+      '<div class="h">'+
+        '<span class="av">'+(dex?'<img src="'+(doJogo||gif)+'" '+
+          'onerror="this.onerror=function(){this.onerror=null;this.src=\''+png+'\'};this.src=\''+gif+'\'" alt="">':'')+'</span>'+
+        '<div class="who"><div class="n"><span class="nick">'+esc(nameOf(NUM))+'</span>'+tl+'</div>'+sub+'</div>'+
+        '<div class="acts"><span class="b '+a.badge+'">'+a.txt+'</span>'+
+          '<span class="ico" id="zerar" title="Zerar as estatísticas desta conta (o mesmo que o jogo faz ao trocar de hunt)">🗑</span>'+
+        '</div>'+
+      '</div><div class="rows">'+
       linha(bola,'Pokébola',fmt(st.ballsTotal||0), st.ballsTotal===0?'zero':(st.ballsTotal<lowBall()?'warn':''), 'ball')+
       linha(pot,'Potion',st.potions!=null?fmt(st.potions):'—', st.potions===0?'zero':'')+
       linha(rev,'Revive',st.revives!=null?fmt(st.revives):'—', st.revives===0?'zero':'')+
-      linha('★','Lendários',fmt(lendarios(st)))+
+      linha(lendSprite(st)||'✨','Lendários',fmt(lendarios(st)))+
       linha('$','Profit',saldo!=null?'<span class="v '+(saldo<0?'neg':'pos')+'">'+(saldo<0?'':'+')+money(saldo)+'</span>':'—')+
-      '</div></div>'
+      '</div>'+
+      (pct!=null?'<div class="hp"><div class="hpbar"><div class="hpfill '+hpCls+'" style="width:'+pct.toFixed(1)+'%"></div></div>'+
+        '<div class="hpcap">HP do time · '+fmt(hp)+' / '+fmt(hpMax)+'</div></div>':'')+
+      rodape+'</div>'
+    liga()
+  }
+
+  // ---- arrastar / redimensionar / zerar ----
+  // screenX/screenY e NAO clientX: a view se move junto com o arrasto, entao a coordenada
+  // local "anda" com o card e o delta sairia errado (o card fugia ou tremia).
+  function arrasta (el, envia, aoSoltar, aceita){
+    if(!el) return
+    let on=false, lx=0, ly=0
+    el.addEventListener('pointerdown', e=>{
+      if(e.button!==0) return
+      if(aceita && !aceita(e)) return
+      on=true; lx=e.screenX; ly=e.screenY
+      try{ el.setPointerCapture(e.pointerId) }catch(_){}
+      e.preventDefault()
+    })
+    el.addEventListener('pointermove', e=>{
+      if(!on) return
+      const dx=e.screenX-lx, dy=e.screenY-ly
+      if(dx||dy){ lx=e.screenX; ly=e.screenY; envia(dx,dy) }
+    })
+    const fim = (e)=>{ if(!on) return; on=false; try{ el.releasePointerCapture(e.pointerId) }catch(_){}; aoSoltar&&aoSoltar() }
+    el.addEventListener('pointerup', fim)
+    el.addEventListener('pointercancel', fim)
+  }
+
+  let ligado=false
+  function liga (){
+    const grip=document.getElementById('grip'), rz=document.getElementById('rz'), zerar=document.getElementById('zerar')
+    arrasta(grip, (dx,dy)=>window.ml.cardMove(NUM,dx,dy))
+    arrasta(rz,   (dx,dy)=>window.ml.cardSize(NUM,dx,dy))
+    // o CABECALHO tambem arrasta (padrao de janela). Garante que sempre exista area de
+    // arrasto, mesmo com o card pequeno - foi assim que ele ficou "preso" uma vez.
+    // Os botoes ficam de fora: senao clicar na lixeira viraria arrasto.
+    const cab=document.querySelector('.h')
+    if(cab) arrasta(cab, (dx,dy)=>window.ml.cardMove(NUM,dx,dy), null, e=>!e.target.closest('.acts'))
+    if(grip) grip.addEventListener('dblclick', ()=>window.ml.cardHome(NUM))
+    if(zerar) zerar.onclick = async ()=>{
+      zerar.textContent='…'
+      let ok=false; try{ ok=await window.ml.cardReset(NUM) }catch(_){}
+      zerar.textContent = ok ? '✓' : '🗑'
+      if(ok){ zerar.classList.add('ok'); setTimeout(()=>{ zerar.classList.remove('ok'); zerar.textContent='🗑' }, 1200) }
+      tick()
+    }
+    ligado=true
   }
   setInterval(tick, 4000); tick()
 </script>

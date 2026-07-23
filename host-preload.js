@@ -24,5 +24,10 @@ contextBridge.exposeInMainWorld('ml', {
   getProfile: () => ipcRenderer.invoke('get-profile'),
   saveProfile: (nome, discord, nick) => ipcRenderer.invoke('save-profile', nome, discord, nick),
   checkAdmin: () => ipcRenderer.invoke('check-admin'),
-  listParticipants: () => ipcRenderer.invoke('list-participants')
+  listParticipants: () => ipcRenderer.invoke('list-participants'),
+  // card flutuante (overlay por conta): arrastar, redimensionar, voltar pro canto e zerar
+  cardMove: (num, dx, dy) => ipcRenderer.send('card:move', num, dx, dy),
+  cardSize: (num, dw, dh) => ipcRenderer.send('card:size', num, dw, dh),
+  cardHome: (num) => ipcRenderer.send('card:home', num),
+  cardReset: (num) => ipcRenderer.invoke('card:reset', num)
 })

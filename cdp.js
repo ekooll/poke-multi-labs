@@ -97,7 +97,7 @@ function _stateFn () {
           potions: w.potions, revives: w.revives, rareItems: w.rareItems, cura: w.cura, usando: w.usando,
           drops: w.drops, lootGold: w.lootGold, lootItems: w.lootItems, capturesGold: w.capturesGold, ballsUsed: w.ballsUsed,
           supplyGold: w.supplyGold, potionsUsed: w.potionsUsed, anTs: w.anTs,
-          lider: w.lider,
+          lider: w.lider, huntMob: w.huntMob,   // huntMob = pokemon da hunt (icone do card)
           ballCounts: w.ballCounts, ballCatalog: w.ballCatalog, msgs: w.msgs, startTs: w.startTs,
           lastMsgTs: w.lastMsgTs, lastKillTs: w.lastKillTs, lastFieldTs: w.lastFieldTs,
           hunt: w.hunt, an: w.an, tot: w.tot, offline: w.offline }
@@ -122,6 +122,11 @@ function _stateFn () {
 
     // nivel + zona: "Nível 203 · Hard Golem"
     let level = null, zone = null, name = null
+    // MEDIDO em 22/07/2026 (CDP na pagina do jogo): o DOM tem ~53 folhas de texto e NENHUMA
+    // casa com "Nivel N", "lv" ou "level" — o jogo desenha o HUD no canvas. Ou seja, o nivel
+    // do TREINADOR nao existe mais aqui, e nenhuma varredura vai achar. Nao vale gastar
+    // querySelectorAll('*') atras dele (foi essa varredura que deu a engasgada periodica).
+    // Se um dia voltar pro DOM, este bloco volta a preencher sozinho.
     const lvl = leaves.find(e => /^N[ií]vel\s+\d+/i.test(T(e)))
     if (lvl) {
       const m = T(lvl).match(/N[ií]vel\s+(\d+)\s*[·|\-–]?\s*(.*)$/i)
