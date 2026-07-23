@@ -119,6 +119,33 @@
     border-right:2px solid var(--faint);border-bottom:2px solid var(--faint);opacity:.6;border-radius:0 0 3px 0}
   .rz:hover::after{border-color:var(--gold);opacity:1}
   .off{padding:14px;text-align:center;color:var(--faint);font-style:italic;font-size:11px}
+
+  /* ---- ultima captura que casa com o filtro (multiplicador + IV) ---- */
+  .ult{position:relative;z-index:2;flex:none;margin-top:5px;font-size:9.5px;font-weight:600;
+    color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ult .q{font-weight:800}
+  .ult .iv{color:var(--faint)}
+
+  /* ---- dropdown de qualidades (abre pelo grip) ---- */
+  .dd{position:absolute;inset:0;z-index:9;display:flex;flex-direction:column;border-radius:15px;
+    background:linear-gradient(160deg,rgba(24,14,12,.985),rgba(7,5,4,.99));padding:9px 10px}
+  .dd h4{margin:0 0 6px;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--gold-soft);display:flex;align-items:center;gap:6px}
+  .dd h4 .x{margin-left:auto;cursor:pointer;color:var(--faint);font-size:12px}
+  .dd h4 .x:hover{color:var(--bad)}
+  .dl{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:3px 8px;align-content:start}
+  .dl::-webkit-scrollbar{width:0}
+  .qi{display:flex;align-items:center;gap:5px;cursor:pointer;padding:2px 3px;border-radius:6px;
+    font-size:10px;font-weight:700;transition:.12s}
+  .qi:hover{background:rgba(255,255,255,.06)}
+  .qi .bx{width:11px;height:11px;flex:none;border:1.5px solid var(--faint);border-radius:3px;
+    display:grid;place-items:center;font-size:8px;line-height:1;color:#0c1a10}
+  .qi.on .bx{background:var(--gold);border-color:var(--gold)}
+  .qi .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .qi .c{margin-left:auto;color:var(--faint);font-variant-numeric:tabular-nums;font-weight:600}
+  .ddf{flex:none;display:flex;gap:6px;margin-top:6px;font-size:9px}
+  .ddf span{cursor:pointer;color:var(--gold-soft);text-decoration:underline}
+  .ddf span:hover{color:var(--gold)}
 </style>
 </head>
 <body>
@@ -140,9 +167,33 @@
   const BACK = { potion: GAME+'/assets/markitems/ultra_potion.png', revive: GAME+'/assets/markitems/revive.png' }
   const nameOf = (n)=>{ try{ return (JSON.parse(localStorage.getItem('pml_names')||'{}'))[n] || ('Conta '+n) }catch{ return 'Conta '+n } }
   const lowBall = ()=>parseInt(localStorage.getItem('pml_lowball')||'500')||500
-  const LEND = 1.7
-  const lends = (st)=>{ const c=st&&st.live&&st.live.catches; return Array.isArray(c)?c.filter(x=>(x.quality||0)>=LEND):[] }
+  // Faixas de qualidade: as MESMAS do dashboard e da tabela oficial (pokepedia /systems/quality).
+  const TIERS = ['Fraca','Comum','Incomum','Rara','Épica','Lendária','Mítica','Anciã','Divina']
+  const TCOL = { 'Fraca':'#8a8f97','Comum':'#c9c9c9','Incomum':'#5fd38a','Rara':'#5b9be6','Épica':'#b07bd8',
+                 'Lendária':'#e5b34f','Mítica':'#ff6bd0','Anciã':'#ff8f3d','Divina':'#5fe0e0' }
+  const qtier = (q)=>{ if(q==null)return ''; if(q<1)return 'Fraca'; if(q<1.1)return 'Comum'; if(q<1.3)return 'Incomum'
+    if(q<1.5)return 'Rara'; if(q<1.7)return 'Épica'; if(q<2)return 'Lendária'; if(q<3)return 'Mítica'
+    if(q<4)return 'Anciã'; return 'Divina' }
+  const mult = (q)=> q==null ? '' : '×'+Number(q).toFixed(3).replace('.',',')
+
+  // Quais qualidades o dono quer contar no card. Guardado por conta: cada tela pode vigiar
+  // uma coisa. Padrao = o antigo "Lendarios" (Lendaria pra cima).
+  const CHAVE_T = 'pml_card_tiers_' + NUM
+  const PADRAO = ['Lendária','Mítica','Anciã','Divina']
+  let tiersSel = (()=>{ try{ const s=JSON.parse(localStorage.getItem(CHAVE_T)); return Array.isArray(s)&&s.length?s:PADRAO }catch{ return PADRAO } })()
+  const salvaTiers = ()=>{ try{ localStorage.setItem(CHAVE_T, JSON.stringify(tiersSel)) }catch{} }
+
+  const capturas = (st)=>{ const c=st&&st.live&&st.live.catches; return Array.isArray(c)?c:[] }
+  const casaTier = (x)=> tiersSel.indexOf(qtier(x.quality)) >= 0
+  const lends = (st)=> capturas(st).filter(casaTier)
   const lendarios = (st)=>lends(st).length
+  // rotulo da linha: 1 tier = o nome dele; varios = o menor + "…" (nao cabe lista inteira)
+  const rotuloTier = ()=>{
+    if(!tiersSel.length) return 'Nenhuma'
+    if(tiersSel.length === 1) return tiersSel[0]
+    const ord = TIERS.filter(t=>tiersSel.indexOf(t)>=0)
+    return ord[0] + (ord.length>1 ? '+' : '')
+  }
   // icone dos Lendarios = POKEMON DA HUNT (o mob que esta na tela agora, via `field` do WS).
   // Fora da hunt nao ha mob: cai no ultimo lendario capturado e, sem ele, na estrela.
   // ATENCAO: o jogo usa IDs PROPRIOS pras variantes - "Enraged Typhlosion" e speciesId 10522,
@@ -174,14 +225,61 @@
     (ehImg(src)?'<img src="'+esc(url(src))+'" alt="">':'<span>'+(src||'')+'</span>')+
     '</span><span class="l">'+lbl+'</span><span class="v">'+val+'</span></div>'
 
-  const rodape = '<div class="grip" id="grip" title="Arraste pra mover · duplo-clique volta pro canto"><i></i></div>'+
+  const rodape = '<div class="grip" id="grip" title="Clique: escolher qualidades · arraste: mover · duplo-clique: volta pro canto"><i></i></div>'+
                  '<div class="rz" id="rz" title="Arraste pra redimensionar"></div>'
 
+  // ultima captura que casa com o filtro, com multiplicador e IV (o dono pediu os dois)
+  function ultimaCap (st){
+    const c = capturas(st)
+    for (let i=c.length-1; i>=0; i--){
+      if (!casaTier(c[i])) continue
+      const x = c[i], t = qtier(x.quality), cor = TCOL[t] || 'var(--muted)'
+      return '<div class="ult" title="Última captura dentro das qualidades escolhidas">'+
+        (x.shiny?'✨ ':'')+esc(x.name||'?')+' · <span class="q" style="color:'+cor+'">'+t+' '+mult(x.quality)+'</span>'+
+        (x.ivTotal!=null?' · <span class="iv">IV '+x.ivTotal+'</span>':'')+'</div>'
+    }
+    return '<div class="ult"><span class="iv">nenhuma captura nessas qualidades</span></div>'
+  }
+
+  // painel de selecao de qualidades (abre no clique do grip)
+  function abreDropdown (st){
+    const card = document.querySelector('.card'); if(!card || card.querySelector('.dd')) return
+    const c = capturas(st)
+    const conta = {}; TIERS.forEach(t => conta[t] = 0)
+    c.forEach(x => { const t = qtier(x.quality); if (conta[t] != null) conta[t]++ })
+    const dd = document.createElement('div')
+    dd.className = 'dd'
+    dd.innerHTML = '<h4>Qualidades no card <span class="x" id="ddx">✕</span></h4><div class="dl">'+
+      TIERS.map(t => '<label class="qi'+(tiersSel.indexOf(t)>=0?' on':'')+'" data-t="'+t+'">'+
+        '<span class="bx">'+(tiersSel.indexOf(t)>=0?'✓':'')+'</span>'+
+        '<span class="n" style="color:'+TCOL[t]+'">'+t+'</span>'+
+        '<span class="c">'+conta[t]+'</span></label>').join('')+
+      '</div><div class="ddf"><span id="ddall">todas</span><span id="ddnone">nenhuma</span><span id="ddstd">padrão</span></div>'
+    card.appendChild(dd)
+    const aplica = ()=>{ salvaTiers(); dd.remove(); tick() }
+    dd.querySelectorAll('.qi').forEach(el => el.onclick = (e)=>{
+      e.stopPropagation()
+      const t = el.dataset.t, i = tiersSel.indexOf(t)
+      if (i >= 0) tiersSel.splice(i,1); else tiersSel.push(t)
+      el.classList.toggle('on', i < 0)
+      el.querySelector('.bx').textContent = i < 0 ? '✓' : ''
+      salvaTiers()
+    })
+    dd.querySelector('#ddx').onclick = aplica
+    dd.querySelector('#ddall').onclick = ()=>{ tiersSel = TIERS.slice(); aplica() }
+    dd.querySelector('#ddnone').onclick = ()=>{ tiersSel = []; aplica() }
+    dd.querySelector('#ddstd').onclick = ()=>{ tiersSel = PADRAO.slice(); aplica() }
+  }
+
+  let ultimoSt = null   // o dropdown precisa do estado pra mostrar a contagem por qualidade
   async function tick (){
     if(document.hidden) return
+    // com o seletor aberto NAO redesenha: o innerHTML novo fecharia o painel na cara do dono
+    if(document.querySelector('.dd')) return
     let st=null
     try{ const r=await window.ml.readDashboard()
       const row=(r&&r.results||[]).find(x=>x.num===NUM); st=row&&row.state }catch(e){}
+    ultimoSt = st
     const a=alertOf(st)
     if(!st||st.ok===false){
       document.getElementById('app').innerHTML='<div class="card"><div class="h">'+
@@ -225,9 +323,10 @@
       linha(bola,'Pokébola',fmt(st.ballsTotal||0), st.ballsTotal===0?'zero':(st.ballsTotal<lowBall()?'warn':''), 'ball')+
       linha(pot,'Potion',st.potions!=null?fmt(st.potions):'—', st.potions===0?'zero':'')+
       linha(rev,'Revive',st.revives!=null?fmt(st.revives):'—', st.revives===0?'zero':'')+
-      linha(lendSprite(st)||'✨','Lendários',fmt(lendarios(st)))+
+      linha(lendSprite(st)||'✨',rotuloTier(),fmt(lendarios(st)),'','poke')+
       linha('$','Profit',saldo!=null?'<span class="v '+(saldo<0?'neg':'pos')+'">'+(saldo<0?'':'+')+money(saldo)+'</span>':'—')+
       '</div>'+
+      ultimaCap(st)+
       (pct!=null?'<div class="hp"><div class="hpbar"><div class="hpfill '+hpCls+'" style="width:'+pct.toFixed(1)+'%"></div></div>'+
         '<div class="hpcap">HP do time · '+fmt(hp)+' / '+fmt(hpMax)+'</div></div>':'')+
       rodape+'</div>'
@@ -237,22 +336,25 @@
   // ---- arrastar / redimensionar / zerar ----
   // screenX/screenY e NAO clientX: a view se move junto com o arrasto, entao a coordenada
   // local "anda" com o card e o delta sairia errado (o card fugia ou tremia).
-  function arrasta (el, envia, aoSoltar, aceita){
+  function arrasta (el, envia, aoClicar, aceita){
     if(!el) return
-    let on=false, lx=0, ly=0
+    let on=false, lx=0, ly=0, andou=0
     el.addEventListener('pointerdown', e=>{
       if(e.button!==0) return
       if(aceita && !aceita(e)) return
-      on=true; lx=e.screenX; ly=e.screenY
+      on=true; lx=e.screenX; ly=e.screenY; andou=0
       try{ el.setPointerCapture(e.pointerId) }catch(_){}
       e.preventDefault()
     })
     el.addEventListener('pointermove', e=>{
       if(!on) return
       const dx=e.screenX-lx, dy=e.screenY-ly
-      if(dx||dy){ lx=e.screenX; ly=e.screenY; envia(dx,dy) }
+      if(dx||dy){ lx=e.screenX; ly=e.screenY; andou+=Math.abs(dx)+Math.abs(dy); envia(dx,dy) }
     })
-    const fim = (e)=>{ if(!on) return; on=false; try{ el.releasePointerCapture(e.pointerId) }catch(_){}; aoSoltar&&aoSoltar() }
+    // solto quase no mesmo lugar = foi CLIQUE, nao arrasto. E assim que o mesmo grip serve
+    // pra mover o card E pra abrir o seletor de qualidades, sem um atrapalhar o outro.
+    const fim = (e)=>{ if(!on) return; on=false; try{ el.releasePointerCapture(e.pointerId) }catch(_){}
+      if(andou < 5 && aoClicar) aoClicar() }
     el.addEventListener('pointerup', fim)
     el.addEventListener('pointercancel', fim)
   }
@@ -260,7 +362,7 @@
   let ligado=false
   function liga (){
     const grip=document.getElementById('grip'), rz=document.getElementById('rz'), zerar=document.getElementById('zerar')
-    arrasta(grip, (dx,dy)=>window.ml.cardMove(NUM,dx,dy))
+    arrasta(grip, (dx,dy)=>window.ml.cardMove(NUM,dx,dy), ()=>abreDropdown(ultimoSt))
     arrasta(rz,   (dx,dy)=>window.ml.cardSize(NUM,dx,dy))
     // o CABECALHO tambem arrasta (padrao de janela). Garante que sempre exista area de
     // arrasto, mesmo com o card pequeno - foi assim que ele ficou "preso" uma vez.
