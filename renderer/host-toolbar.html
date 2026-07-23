@@ -245,7 +245,7 @@
       box.appendChild(row)
     })
     // + Conta (respeita o limite da licenca)
-    if (s.count < (s.maxTelas || 1)) {
+    if (s.count < (s.maxTelas || 4)) {
       const add = document.createElement('button')
       add.className = 'addbtn'; add.textContent = '+ Conta'
       add.onclick = () => window.ml.addAccount()
@@ -273,7 +273,7 @@
       wireFocusEdit(b, sl, () => editRailName(b, sl))
       rail.appendChild(b)
     })
-    if (s.count < (s.maxTelas || 1)) {
+    if (s.count < (s.maxTelas || 4)) {
       const add = document.createElement('button')
       add.className = 'rbtn radd'; add.textContent = '+'; add.title = 'Nova conta'
       add.onclick = () => window.ml.addAccount()
@@ -283,7 +283,9 @@
 
   function render (s) {
     last = s
-    const maxT = s.maxTelas || 1
+    // beta gratuito: teto = 4 (regra do jogo, 4 contas/IP). Fallback 4 de proposito:
+    // com o antigo "|| 1", um estado sem maxTelas travava os botoes 2/3/4 na cara do usuario.
+    const maxT = s.maxTelas || 4
     document.querySelectorAll('#seg-n button').forEach(b => {
       const n = +b.dataset.n
       b.classList.toggle('on', n === s.count)
@@ -292,16 +294,14 @@
     document.querySelectorAll('#seg-mode button').forEach(b => b.classList.toggle('on', b.dataset.m === s.mode))
     renderAccts(s)
     renderRail(s)
-    const plano = maxT >= 4 ? 'Assinante · 4 telas' : 'Grátis · 1 tela'
+    // BETA GRATUITO (22/07/2026): sem plano, sem "assinar", sem cadeado.
     const foco = s.solo >= 0 ? ' · foco Conta ' + ((s.slots.find(x => x.i === s.solo) || {}).num || '') : ''
     $('#foot').innerHTML =
       // quantas telas estao ABERTAS (antes mostrava quantas estavam na hunt, que e outra coisa)
       '<div class="fline"><b>' + s.count + '</b> ' + (s.count === 1 ? 'conta aberta' : 'contas abertas') + foco + '</div>' +
       (s.email ? '<div class="fline">' + s.email + '</div>' : '') +
-      '<div class="fline">' + plano + (maxT < 4 ? ' · <span class="up" id="up">assinar</span>' : '') +
-      ' · <span class="up" id="sair">sair</span></div>'
+      '<div class="fline">Beta · 4 telas liberadas · <span class="up" id="sair">sair</span></div>'
     const sair = document.getElementById('sair'); if (sair) sair.onclick = () => window.ml.logout()
-    const up = document.getElementById('up'); if (up) up.onclick = () => { $('#foot').querySelector('.fline').innerHTML = 'Assine pra liberar 4 telas 🔒' }
   }
 
   window.ml.onState(render)
@@ -315,8 +315,7 @@
   }
   document.querySelectorAll('#seg-n button').forEach(b =>
     b.onclick = () => {
-      if (b.classList.contains('locked')) { $('#foot').querySelector('.fline').innerHTML = 'Assine pra abrir ' + b.dataset.n + ' telas 🔒'; return }
-      window.ml.relaunch(parseInt(b.dataset.n, 10))
+      window.ml.relaunch(parseInt(b.dataset.n, 10))   // beta: nenhum botao fica bloqueado
     })
   document.querySelectorAll('#seg-mode button').forEach(b =>
     b.onclick = () => window.ml.setLayout(b.dataset.m))

@@ -23,7 +23,7 @@ const CHROME_UA =
   '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 const BRIDGE = path.join(__dirname, 'vperts-ext', 'content.js');
 const MAX = 4;                  // regra do jogo: 4/IP
-const START = 4;                // abre 4 (assinante); pode fechar com o ✕
+const START = 4;                // beta gratuito: abre as 4; pode fechar com o ✕
 
 const B = 2;                    // borda vermelha (px)
 const TITLE_H = 32;

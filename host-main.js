@@ -41,7 +41,11 @@ let relayoutTimer = null
 let popupProc = null
 let busy = false
 // ---- auth / licenca (Fase 3) ----
-let licensedTelas = 1   // quantas telas a licenca libera (1 gratis / 4 pago)
+// BETA GRATUITO (22/07/2026): o app deixou de ser pago ate o lancamento do servidor.
+// Todo mundo que loga recebe o teto do jogo (4 telas/IP). O esqueleto de licenca
+// (checkLicense + RPC verificar_licenca) continua abaixo, DORMENTE, pra religar
+// numa linha quando a cobranca voltar: e so trocar esta constante por lic.telas.
+let licensedTelas = CFG.MAX_PANELS   // beta: 4 pra todos (era 1 gratis / 4 pago)
 let authEmail = null
 let authToken = null    // access_token atual (pra chamar RPCs do sorteio)
 let machineId = null
@@ -472,13 +476,16 @@ async function runSelfTest () {
   dlog('===== SELFTEST fim =====')
 }
 
-// depois de logar/restaurar: valida licenca, define telas e abre o painel
+// depois de logar/restaurar: abre o painel (no beta gratuito nao ha gate de licenca)
 async function enterApp (token, email) {
-  const lic = await checkLicense(token)
-  licensedTelas = (lic && lic.telas) ? lic.telas : 1
+  // BETA GRATUITO: nao consultamos mais a licenca pra decidir quantas telas liberar.
+  // Religar a cobranca = descomentar as 2 linhas abaixo e apagar a terceira.
+  // const lic = await checkLicense(token)
+  // licensedTelas = (lic && lic.telas) ? lic.telas : 1
+  licensedTelas = CFG.MAX_PANELS
   authEmail = email
   authToken = token
-  dlog('enterApp email=' + email + ' telas=' + licensedTelas + ' lic=' + JSON.stringify(lic))
+  dlog('enterApp email=' + email + ' telas=' + licensedTelas + ' (beta gratuito, sem checagem de licenca)')
   win.loadFile(path.join(__dirname, 'renderer', 'host-toolbar.html'))
   win.webContents.once('did-finish-load', async () => {
     startWin32Server()   // compila o Add-Type 1x -> trocas viram ~5ms
@@ -709,7 +716,7 @@ ipcMain.handle('login', async (_e, email, password) => {
 })
 ipcMain.handle('signup', async (_e, email, password) => doSignup(email, password))
 ipcMain.handle('logout', async () => {
-  clearSession(); licensedTelas = 1; authEmail = null
+  clearSession(); licensedTelas = CFG.MAX_PANELS; authEmail = null   // beta: sem downgrade no logout
   stopPopupWatch(); stopFocusWatch(); unregisterShortcuts(); try { lootWin && lootWin.close() } catch {} try { dashWin && dashWin.close() } catch {} try { overlayWin && overlayWin.close() } catch {} killAll()
   win.loadFile(path.join(__dirname, 'renderer', 'login.html'))
   return true

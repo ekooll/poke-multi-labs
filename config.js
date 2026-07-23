@@ -10,9 +10,12 @@ module.exports = {
   MAX_PANELS: 4,
   START_PANELS: 1,
 
-  // Tiers de assinatura (enforcement vem na Fase 3 - licenciamento):
-  FREE_PANELS: 1,   // sem assinar: 1 tela
-  PAID_PANELS: 4,   // assinante (R$7/mes): ate 4 telas
+  // BETA GRATUITO (22/07/2026): o app nao e mais pago ate o lancamento do servidor.
+  // Todo mundo que loga usa MAX_PANELS (4). Os tiers abaixo ficam DORMENTES: nada
+  // no codigo le mais essas duas chaves - estao aqui so como registro do modelo antigo,
+  // pra quando a cobranca voltar. Ver host-main.js (licensedTelas) pra religar.
+  FREE_PANELS: 4,   // beta: sem distincao entre gratis e pago
+  PAID_PANELS: 4,   // (modelo antigo: 1 gratis / 4 por R$7/mes)
 
   // Flags do Chrome: enxuga overhead e MANTEM o idle rodando nas telas
   // escondidas/ocluidas (idle game precisa progredir mesmo sem foco).
