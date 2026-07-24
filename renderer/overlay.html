@@ -126,6 +126,9 @@
     white-space:nowrap;text-shadow:0 2px 8px rgba(0,0,0,.8)}
   .r.zero .v{color:var(--bad)} .r.warn .v{color:var(--mid)}
   .v.pos{color:var(--good)} .v.neg{color:var(--bad)}
+  /* separador das linhas com dois numeros (Derrotados = kills/capturas, Shiny = shinies/capturas):
+     barra faint entre os dois valores tabulares, so pra nao grudarem. Nao muda a cor dos numeros. */
+  .r .v .sep{color:var(--faint);font-weight:600;margin:0 2px}
 
   /* (CSS antigo do HP-do-rodape removido: a regra `.hp{margin-top:6px}` COLIDIA com a classe
      `hp` do preenchimento da barra nova e empurrava o verde 6px pra baixo — parecia "meio cheio
@@ -222,6 +225,8 @@
   const SPR_HUNT = './sprites/hunt/'
   const fmt = (n)=>Number(n||0).toLocaleString('pt-BR')
   const money = (n)=>(n<0?'-$':'$')+Math.abs(Number(n||0)).toLocaleString('pt-BR')
+  // "a / b" com a barra faint entre dois valores (Derrotados = kills/capturas, Shiny = shinies/capturas)
+  const par = (a,b)=> fmt(a)+'<span class="sep">/</span>'+fmt(b)
   // compacto pro XP (177.699.808 -> "177,7M") — o valor cru nao cabe dentro da barra
   const curto = (n)=>{ n=Number(n||0); if(n<1000)return String(n)
     if(n<1e6)return (n/1e3).toFixed(n<1e4?1:0).replace('.',',')+'k'
@@ -438,6 +443,9 @@
     if(document.hidden) return
     // com o seletor aberto NAO redesenha: o innerHTML novo fecharia o painel na cara do dono
     if(document.querySelector('.dd')) return
+    // durante o arrasto NAO redesenha: senao o grip/cabecalho que captura o ponteiro e' destruido
+    // e o card congela no meio do movimento (ver o flag `arrastando` em arrasta()).
+    if(arrastando) return
     let st=null
     try{ const r=await window.ml.readDashboard()
       const row=(r&&r.results||[]).find(x=>x.num===NUM); st=row&&row.state }catch(e){}
@@ -474,6 +482,14 @@
     const naHunt = !!(st.hunt && st.hunt.seen)
     const tHunt = naHunt ? tempoHunt(st.huntSec) : null
     const kills = (st.live && st.live.kills != null) ? st.live.kills : null
+    // Capturados DESTA sessao (lado direito de Derrotados). Mesma fonte da linha de qualidade/ultima
+    // captura: capturas() ja corta pelo marco da sessao (sessTs), zerando junto na lixeira.
+    const caught = capturas(st).length
+    // Linha Shiny = APARICOES de shiny / shiny CAPTURADOS (NAO conta captura de pokemon normal).
+    // Contadores da sessao vindos da bridge: st.live.shinies = shiny que apareceu (escapou selvagem
+    // + capturado), st.live.shiniesCaught = shiny capturado. Zeram junto com o resto na lixeira.
+    const shinyApp = (st.live && st.live.shinies != null) ? st.live.shinies : 0
+    const shinyCap = (st.live && st.live.shiniesCaught != null) ? st.live.shiniesCaught : 0
     // ✨ e o mesmo simbolo que o jogo usa pra shiny (botao "✨ Shiny" no Log de Capturas)
     // nivel: o do `hero` (poke-xp, atualiza a cada kill) e mais fresco que o do roster (raro),
     // que ficava 1 atras do card do jogo logo apos subir de nivel. Nunca menor que o roster.
@@ -498,7 +514,8 @@
       linhaBolas(st, bola)+
       linha(pot,'Potion',st.potions!=null?fmt(st.potions):'—', st.potions===0?'zero':'')+
       linha(rev,'Revive',st.revives!=null?fmt(st.revives):'—', st.revives===0?'zero':'')+
-      linha('⚔','Derrotados',kills!=null?fmt(kills):'—')+
+      linha('⚔','Derrotados',kills!=null?par(kills,caught):'—')+
+      linha('✨','Shiny',par(shinyApp,shinyCap))+
       linha(lendSprite(st)||'✨',rotuloTier(),fmt(lendarios(st)),'','poke')+
       linha('$','Profit',saldo!=null?'<span class="v '+(saldo<0?'neg':'pos')+'">'+(saldo<0?'':'+')+money(saldo)+'</span>':'—')+
       '</div>'+
@@ -510,13 +527,17 @@
   // ---- arrastar / redimensionar / zerar ----
   // screenX/screenY e NAO clientX: a view se move junto com o arrasto, entao a coordenada
   // local "anda" com o card e o delta sairia errado (o card fugia ou tremia).
+  // enquanto o dono segura pra arrastar, o tick() de 1s NAO pode redesenhar o card: o innerHTML
+  // novo destruiria o grip/cabecalho que estao capturando o ponteiro e o arrasto travava no meio
+  // (era o "tem hora que nao mexe"). Flag compartilhada por grip/cabecalho/canto de resize.
+  let arrastando=false
   function arrasta (el, envia, aoClicar, aceita){
     if(!el) return
     let on=false, lx=0, ly=0, andou=0
     el.addEventListener('pointerdown', e=>{
       if(e.button!==0) return
       if(aceita && !aceita(e)) return
-      on=true; lx=e.screenX; ly=e.screenY; andou=0
+      on=true; arrastando=true; lx=e.screenX; ly=e.screenY; andou=0
       try{ el.setPointerCapture(e.pointerId) }catch(_){}
       e.preventDefault()
     })
@@ -527,7 +548,7 @@
     })
     // solto quase no mesmo lugar = foi CLIQUE, nao arrasto. E assim que o mesmo grip serve
     // pra mover o card E pra abrir o seletor de qualidades, sem um atrapalhar o outro.
-    const fim = (e)=>{ if(!on) return; on=false; try{ el.releasePointerCapture(e.pointerId) }catch(_){}
+    const fim = (e)=>{ if(!on) return; on=false; arrastando=false; try{ el.releasePointerCapture(e.pointerId) }catch(_){}
       if(andou < 5 && aoClicar) aoClicar() }
     el.addEventListener('pointerup', fim)
     el.addEventListener('pointercancel', fim)

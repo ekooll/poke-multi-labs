@@ -443,6 +443,19 @@
               nome: (V.hunt && V.hunt.slug) ? V.hunt.slug.replace(/_/g, ' ') : null };
           }
           break;
+        case 'joy-healed': {
+          // Nurse Joy curou o time TODO. Evento dedicado do jogo (sem payload), dispara tanto no
+          // KO quanto no HP parcial. Fora da hunt nao chega `field`, entao sem isso o HP do card
+          // ficava travado no ultimo valor da batalha ("0/X KO" ou parcial) ate reentrar na hunt.
+          // HP cheio = maxHp: preferimos o maxHp do `field` (real, acompanha level-up); sem ele,
+          // caimos no maxHp do roster. Descoberto via captura WS (23/07/2026): a cura dispara
+          // `joy-healed` seguido de `pokes`. Ver [[cicatriz-card-x-hunt-analyzer]].
+          const mx = (V.heroMaxHp > 0) ? V.heroMaxHp : ((V.lider && V.lider.maxHp) || null)
+          if (mx) { V.heroHp = mx; if (!(V.heroMaxHp > 0)) V.heroMaxHp = mx }
+          V.heroFainted = false
+          salvaHero()
+          break
+        }
         case 'field-kill':
           marcaAtividadeHunt();                                  // voltou depois de sair? relogio do zero
           V.kills++; V.tot.kills++; V.lastKillTs = Date.now();   // prova de que a hunt esta viva
