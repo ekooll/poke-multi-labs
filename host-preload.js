@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('ml', {
   readLoot: () => ipcRenderer.invoke('read-loot'),
   openLoot: () => ipcRenderer.invoke('open-loot'),
   readDashboard: () => ipcRenderer.invoke('read-dashboard'),
+  readHero: () => ipcRenderer.invoke('read-hero'),   // leitura LEVE so do HP/XP (loop rapido do card)
   openDashboard: () => ipcRenderer.invoke('open-dashboard'),
   dashboardPin: (on) => ipcRenderer.invoke('dashboard-pin', on),
   dashboardMinimize: () => ipcRenderer.invoke('dashboard-minimize'),

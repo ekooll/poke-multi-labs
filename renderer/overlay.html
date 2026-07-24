@@ -40,8 +40,10 @@
   /* ---- cabecalho: avatar redondo + nick/nv + acoes ---- */
   /* flex:none no cabecalho, no HP e no grip: sem isso, ao encolher o card o conteudo
      empurrava o grip pra fora do overflow:hidden e o card ficava SEM area de arrasto. */
-  .h{display:flex;align-items:center;gap:9px;padding-bottom:7px;margin-bottom:6px;flex:none;
-    border-bottom:1px solid var(--line);position:relative;z-index:2;cursor:grab}
+  /* header compacto e SEM borda embaixo: as barras de HP/XP grudam logo abaixo do nome (a
+     divisoria antiga jogava as barras pra longe do nome) */
+  .h{display:flex;align-items:center;gap:9px;padding-bottom:2px;margin-bottom:2px;flex:none;
+    position:relative;z-index:2;cursor:grab}
   .h:active{cursor:grabbing}
   .h .acts{cursor:default}
   .av{width:38px;height:38px;flex:none;border-radius:50%;position:relative;
@@ -90,6 +92,9 @@
   .r+.r{border-top:1px solid rgba(216,138,74,.09)}
   /* overflow hidden: rede de seguranca. Sprite que venha maior que a caixa e' CORTADO, nunca
      empurra a linha nem invade a de cima/baixo. */
+  /* ===== PADRAO DE ICONE DO CARD: 19x19, TRAVADO (pedido do dono 24/07/2026) =====
+     Todo icone de linha — sprite (img) OU emoji/texto (span, ver .r .i span) — vive nesta caixa
+     de 19x19 e deve encher/aparentar esse tamanho. Nao criar tamanhos diferentes por linha. */
   .r .i{width:19px;height:19px;flex:none;display:grid;place-items:center;overflow:hidden}
   .r .i img{width:19px;height:19px;object-fit:contain;image-rendering:pixelated}
   /* MOLDURA VAZIA: os sprites de bola do jogo tem 32x32 com o desenho ocupando so 15x15 — 53%
@@ -102,7 +107,15 @@
      quem decide e' o `onload`, olhando o naturalWidth do arquivo (ver `linha()`). Sprite novo
      do jogo se ajusta sozinho, sem ninguem lembrar de vir aqui. */
   .r .i.ball img.z{width:40px;height:40px;margin:-10px}
-  .r .i span{font-size:13px;line-height:1;color:var(--gold)}
+  /* SPRITE DO POKEMON DA HUNT (linha Lendaria, .i.poke): FALLBACK. O tamanho real e' medido por
+     bounding box no JS (ver AJUSTA_POKE em linha()) e sobrescrito via style inline, pra CADA
+     pokemon encher igual a caixa de 19x19. Este 29px so vale se a medicao falhar (CORS/taint). */
+  .r .i.poke img{width:29px;height:29px;margin:-5px}
+  /* ICONES DE TEXTO/EMOJI (Derrotados ⚔, Profit $, Lendaria ✨ quando nao tem sprite): font-size
+     ALTO pra encher a caixa de 19px e ficar do MESMO tamanho visual dos sprites de
+     ball/potion/revive. PADRAO TRAVADO -> 19x19 e o tamanho UNICO de todo icone de linha do card
+     (ver .r .i e .r .i img). NAO voltar pra 13px: em 24/07/2026 os 3 de baixo sumiam de pequenos. */
+  .r .i span{font-size:19px;line-height:1;color:var(--gold)}
   .r .l{flex:1;min-width:0;font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
   /* Inter, nao Cinzel: numero de painel pede fonte de interface. Cinzel e display de
      capitulares romanas - a serifa pesa em 14px e ela nao traz a feature `tnum`, entao o
@@ -114,14 +127,43 @@
   .r.zero .v{color:var(--bad)} .r.warn .v{color:var(--mid)}
   .v.pos{color:var(--good)} .v.neg{color:var(--bad)}
 
-  /* ---- hp do time ---- */
-  .hp{position:relative;z-index:2;margin-top:6px;flex:none}
-  .hpbar{height:5px;border-radius:99px;background:rgba(255,255,255,.09);overflow:hidden}
-  .hpfill{height:100%;border-radius:99px;background:linear-gradient(90deg,#4fc47a,#7ee6a0);
-    transition:width .3s ease}
-  .hpfill.mid{background:linear-gradient(90deg,#e0a93c,#f5cd6b)}
-  .hpfill.low{background:linear-gradient(90deg,#e24b35,#ff8a76)}
-  .hpcap{margin-top:3px;font-size:9px;font-weight:600;color:var(--faint);letter-spacing:.04em}
+  /* (CSS antigo do HP-do-rodape removido: a regra `.hp{margin-top:6px}` COLIDIA com a classe
+     `hp` do preenchimento da barra nova e empurrava o verde 6px pra baixo — parecia "meio cheio
+     na altura". O XP nao tinha esse conflito, por isso enchia certo.) */
+
+  /* ---- barras de HP/XP do lider (estilo card do jogo, sob o nome) ---- */
+  /* margin-top pequeno: as barras sobem, ficando logo abaixo do nome (nao mais soltas embaixo) */
+  .herobars{position:relative;z-index:2;display:flex;flex-direction:column;gap:3px;margin:2px 0 3px;flex:none}
+  /* .hbar centraliza o texto por FLEX (mais robusto que absolute+inset — o valor estava
+     subindo no eixo vertical por causa da metrica da fonte) */
+  /* trilha = SULCO ESCURO (parte vazia da barra, padrao de progresso — nao "espaco vago"). A
+     BORDA marca o comprimento total, entao as duas barras leem como do mesmo tamanho, cheias
+     ou nao. O que enganava antes era so o preenchimento (%) diferente. */
+  /* SEM flex na barra: o flex (align-items:center) empurrava o preenchimento absoluto pra baixo,
+     deixando o topo do verde vazio. Agora o fill usa top:0/bottom:0 puro (altura cheia) e o
+     texto centraliza pelo proprio .hin absoluto. */
+  .hbar{position:relative;height:19px;border-radius:7px;overflow:hidden;
+    background:rgba(0,0,0,.34);border:1px solid rgba(255,255,255,.15);
+    box-shadow:inset 0 1px 2px rgba(0,0,0,.45)}
+  /* top:0 + bottom:0 (em vez de height:100%): forca o verde a ocupar a ALTURA TODA da barra. Com
+     height:100% + display:flex no pai, o preenchimento absoluto era empurrado pra baixo (comecava
+     7px abaixo do topo) — parecia "meio cheio na altura". top+bottom ancora nas duas pontas e
+     ignora o alinhamento do flex. SEM transition: o verde acompanha o valor na hora (sem gap). */
+  .hfill{position:absolute;left:0;top:0;bottom:0}
+  .hfill.hp{background:linear-gradient(90deg,#3fae66,#7ee6a0)}
+  .hfill.hp.mid{background:linear-gradient(90deg,#e0a93c,#f5cd6b)}
+  .hfill.hp.low{background:linear-gradient(90deg,#e24b35,#ff8a76)}
+  .hfill.xp{background:linear-gradient(90deg,#c99a2e,#f0cf6b)}
+  /* valor centralizado (flex do pai) + CONTORNO PRETO pra ficar legivel sobre a barra colorida */
+  /* .hin absoluto cobrindo a barra + flex proprio pra centralizar o texto (nao afeta o .hfill) */
+  .hbar .hin{position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;line-height:1;
+    font-family:Inter,system-ui,sans-serif;font-size:11px;font-weight:800;color:#fff;
+    letter-spacing:.02em;font-variant-numeric:tabular-nums;
+    text-shadow:-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 1px 2px rgba(0,0,0,.85)}
+  .hbar .ko{color:#ffb3a6;font-weight:800;margin-left:6px}
+  /* XP sem a curva aprendida ainda: listrado faint (nao finge 0% nem 100%) */
+  .hbar.aprendendo .hfill.xp{width:100%!important;opacity:.2;
+    background:repeating-linear-gradient(45deg,#c99a2e 0 6px,transparent 6px 12px)}
 
   /* ---- grip: arrastar o card (igual ao modal do dashboard) ---- */
   .grip{position:relative;z-index:3;height:14px;flex:none;display:grid;place-items:center;
@@ -180,6 +222,11 @@
   const SPR_HUNT = './sprites/hunt/'
   const fmt = (n)=>Number(n||0).toLocaleString('pt-BR')
   const money = (n)=>(n<0?'-$':'$')+Math.abs(Number(n||0)).toLocaleString('pt-BR')
+  // compacto pro XP (177.699.808 -> "177,7M") — o valor cru nao cabe dentro da barra
+  const curto = (n)=>{ n=Number(n||0); if(n<1000)return String(n)
+    if(n<1e6)return (n/1e3).toFixed(n<1e4?1:0).replace('.',',')+'k'
+    if(n<1e9)return (n/1e6).toFixed(1).replace('.',',')+'M'
+    return (n/1e9).toFixed(2).replace('.',',')+'B' }
   const esc = (s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
   // ATENCAO: nome solto (ex "ultraball.png") = item do jogo e vira /assets/items/<nome>.
   // Por isso caminho LOCAL precisa comecar com "./" e sair intacto - senao ./sprites/hunt/
@@ -273,8 +320,16 @@
   // fica no tamanho natural. Sem isso, um numero cravado no CSS servia pra uma bola e estourava
   // a outra — foi o que aconteceu em 23/07 (ver o comentario da regra `.r .i.ball img.z`).
   const ZOOM = "if(this.naturalWidth>=24)this.classList.add('z')"
+  // SPRITE DO POKEMON DA HUNT: cada arte da PokeAPI ocupa uma fracao diferente do canvas 96x96
+  // (Golem enche ~70% e fica otimo; Natu ~45% e ficava minusculo). Tamanho FIXO nunca serve pros
+  // dois. Aqui a gente MEDE a bounding box opaca do sprite e escala pra o MAIOR lado do desenho
+  // bater 19px, centralizado — assim TODO pokemon fica do mesmo tamanho (padrao 19x19). A medicao
+  // usa um Image separado com crossOrigin (o raw.githubusercontent manda ACAO:*); se falhar
+  // (taint/erro/CORS), cai no fallback fixo de 29px do CSS `.r .i.poke img`. O <img> visivel do
+  // card nunca depende disso — no pior caso mantem o comportamento antigo.
+  const AJUSTA_POKE = "(function(g){try{var m=new Image();m.crossOrigin='anonymous';m.onload=function(){try{var w=m.naturalWidth,h=m.naturalHeight;if(!w||!h)return;var c=document.createElement('canvas');c.width=w;c.height=h;var x=c.getContext('2d');x.drawImage(m,0,0);var d=x.getImageData(0,0,w,h).data,mnx=w,mny=h,mxx=0,mxy=0,ok=false,px,py;for(py=0;py<h;py++){for(px=0;px<w;px++){if(d[(py*w+px)*4+3]>16){ok=true;if(px<mnx)mnx=px;if(px>mxx)mxx=px;if(py<mny)mny=py;if(py>mxy)mxy=py;}}}if(!ok)return;var lado=Math.max(mxx-mnx+1,mxy-mny+1),D=Math.round(19*w/lado),mg=Math.round((D-19)/2);g.style.width=D+'px';g.style.height=D+'px';g.style.margin=(-mg)+'px';}catch(e){}};m.src=g.src;}catch(e){}})(this)"
   const linha = (src,lbl,val,cls,icls)=>'<div class="r '+(cls||'')+'"><span class="i '+(icls||'')+'">'+
-    (ehImg(src)?'<img src="'+esc(url(src))+'" onload="'+ZOOM+'" alt="">':'<span>'+(src||'')+'</span>')+
+    (ehImg(src)?'<img src="'+esc(url(src))+'" onload="'+((icls&&icls.indexOf('poke')>=0)?AJUSTA_POKE:ZOOM)+'" alt="">':'<span>'+(src||'')+'</span>')+
     '</span><span class="l">'+lbl+'</span><span class="v">'+val+'</span></div>'
 
   // ---- BOLAS POR TIPO ----
@@ -349,6 +404,35 @@
     dd.querySelector('#ddstd').onclick = ()=>{ tiersSel = PADRAO.slice(); aplica() }
   }
 
+  // ---- BARRAS DE HP E XP DO LIDER (estilo card do jogo) ----
+  // HP verde + XP dourado, GROSSAS, com o valor DENTRO, logo abaixo do nome. Tempo real:
+  // HP vem de field.heroHp (~3,5x/s), XP/level de poke-xp (por kill) — ver cdp.js `hero`.
+  // O % do XP so aparece quando a curva foi aprendida (2 level-ups); senao mostra o xp cru,
+  // sem chutar fórmula. Barra "aprendendo" fica listrada em vez de fingir 0%.
+  function barrasHeroi (st){
+    const h = st && st.hero
+    if (!h || (h.hpPct==null && h.level==null)) return ''
+    let out = '<div class="herobars">'
+    if (h.hpPct != null){
+      const cls = h.hpPct<=25 ? 'low' : (h.hpPct<=55 ? 'mid' : '')
+      const ko = h.fainted ? ' <span class="ko">KO</span>' : ''
+      // valor CENTRALIZADO dentro da barra, igual o card do jogo
+      out += '<div class="hbar" title="HP do líder (tempo real)">'+
+        '<div class="hfill hp '+cls+'" style="width:'+h.hpPct.toFixed(1)+'%"></div>'+
+        '<span class="hin">'+fmt(h.hp)+' / '+fmt(h.maxHp)+ko+'</span></div>'
+    }
+    if (h.level != null){
+      const temPct = h.xpPct != null
+      const w = temPct ? h.xpPct.toFixed(1) : 0
+      const txt = temPct ? ('EXP '+(h.xpPct<10 ? h.xpPct.toFixed(1) : Math.round(h.xpPct))+'%')
+                         : ('EXP · '+(h.xp!=null ? curto(h.xp) : '—'))
+      out += '<div class="hbar xp'+(temPct?'':' aprendendo')+'" title="'+(temPct?'XP do nível (tempo real)':'aprendendo a curva — quando sobe de nível vira %')+'">'+
+        '<div class="hfill xp" style="width:'+w+'%"></div>'+
+        '<span class="hin">'+txt+'</span></div>'
+    }
+    return out + '</div>'
+  }
+
   let ultimoSt = null   // o dropdown precisa do estado pra mostrar a contagem por qualidade
   async function tick (){
     if(document.hidden) return
@@ -391,9 +475,12 @@
     const tHunt = naHunt ? tempoHunt(st.huntSec) : null
     const kills = (st.live && st.live.kills != null) ? st.live.kills : null
     // ✨ e o mesmo simbolo que o jogo usa pra shiny (botao "✨ Shiny" no Log de Capturas)
+    // nivel: o do `hero` (poke-xp, atualiza a cada kill) e mais fresco que o do roster (raro),
+    // que ficava 1 atras do card do jogo logo apos subir de nivel. Nunca menor que o roster.
+    const nivelPoke = Math.max((st.hero&&st.hero.level)||0, (lid&&lid.level)||0) || (lid&&lid.level)
     const sub = lid && lid.name
       ? '<div class="sub">'+(lid.shiny?'<span class="sh">✨ </span>':'')+esc(lid.name)+
-        (lid.level?' <span class="lv">nv '+fmt(lid.level)+'</span>':'')+'</div>'
+        (nivelPoke?' <span class="lv">nv '+fmt(nivelPoke)+'</span>':'')+'</div>'
       : ''
     document.getElementById('app').innerHTML='<div class="card">'+
       '<div class="h">'+
@@ -405,7 +492,9 @@
           '<span class="b '+a.badge+'" title="'+a.txt+'"></span>'+
           '<span class="ico" id="zerar" title="Zerar as estatísticas desta conta (o mesmo que o jogo faz ao trocar de hunt)">🗑</span>'+
         '</div>'+
-      '</div><div class="rows">'+
+      '</div>'+
+      barrasHeroi(st)+
+      '<div class="rows">'+
       linhaBolas(st, bola)+
       linha(pot,'Potion',st.potions!=null?fmt(st.potions):'—', st.potions===0?'zero':'')+
       linha(rev,'Revive',st.revives!=null?fmt(st.revives):'—', st.revives===0?'zero':'')+
@@ -414,8 +503,6 @@
       linha('$','Profit',saldo!=null?'<span class="v '+(saldo<0?'neg':'pos')+'">'+(saldo<0?'':'+')+money(saldo)+'</span>':'—')+
       '</div>'+
       ultimaCap(st)+
-      (pct!=null?'<div class="hp"><div class="hpbar"><div class="hpfill '+hpCls+'" style="width:'+pct.toFixed(1)+'%"></div></div>'+
-        '<div class="hpcap">HP do time · '+fmt(hp)+' / '+fmt(hpMax)+'</div></div>':'')+
       rodape+'</div>'
     liga()
   }
@@ -466,7 +553,58 @@
     }
     ligado=true
   }
-  setInterval(tick, 4000); tick()
+  setInterval(tick, 1000)   // 1s: redesenha o card inteiro
+
+  // ---- LOOP RAPIDO SO DAS BARRAS DE HP/XP (250ms) ----
+  // O `tick` de 1s redesenha o card todo (pesado). Este le SO os campos crus do lider (leitura
+  // leve `readHero`) e atualiza APENAS a largura+texto das barras, direto no DOM — sem
+  // re-renderizar. Assim o HP acompanha a batalha de perto, quase igual o jogo, sem flicker.
+  function heroDe (raw){
+    if(!raw) return null
+    const hp = (raw.heroHp!=null)?raw.heroHp:raw.rosterHp
+    const mx = (raw.heroMaxHp>0)?raw.heroMaxHp:raw.rosterMaxHp
+    const lvl = (raw.liderLevel!=null)?raw.liderLevel:raw.rosterLevel
+    const xp = raw.liderXp
+    // XP%: exato quando conhece limiar[lvl] E limiar[lvl+1]. Enquanto o [lvl+1] nao foi
+    // aprendido (so vem quando sobe de novo), ESTIMA o teto pelo span consecutivo mais recente
+    // conhecido (a curva cresce suave). Dado observado, nao formula chutada. Vira exato sozinho.
+    let xpPct=null; const T=raw.xpThresholds
+    if(T && lvl!=null && xp!=null){
+      const base=T[lvl]; let teto=T[lvl+1]
+      if(base!=null && teto==null){
+        let span=null
+        for(let L=lvl; L>1 && L>=lvl-10; L--){ if(T[L]!=null && T[L-1]!=null){ span=T[L]-T[L-1]; break } }
+        if(span!=null && span>0) teto=base+span
+      }
+      if(base!=null && teto!=null && teto>base) xpPct=Math.max(0,Math.min(100,(xp-base)/(teto-base)*100))
+    }
+    return {hp,mx,hpPct:(hp!=null&&mx)?Math.max(0,Math.min(100,hp/mx*100)):null,lvl,xp,xpPct,fainted:!!raw.heroFainted}
+  }
+  let hpBusy=false
+  async function tickHP (){
+    if(document.hidden || document.querySelector('.dd') || hpBusy) return
+    hpBusy=true
+    let raw=null; try{ const r=await window.ml.readHero(); raw=r&&r[NUM] }catch(e){ hpBusy=false; return }
+    hpBusy=false
+    const h=heroDe(raw); if(!h) return
+    // level ao vivo no subtitulo (mesmo ritmo do HP) — nunca 1 atras do jogo
+    if(h.lvl!=null){ const lvEl=document.querySelector('.sub .lv'); if(lvEl) lvEl.textContent='nv '+fmt(h.lvl) }
+    const bars=document.querySelector('.herobars'); if(!bars) return
+    const hpbar=bars.querySelector('.hbar:not(.xp)'), xpbar=bars.querySelector('.hbar.xp')
+    if(hpbar && h.hpPct!=null){
+      const fill=hpbar.querySelector('.hfill'), lbl=hpbar.querySelector('.hin')
+      if(fill){ fill.className='hfill hp '+(h.hpPct<=25?'low':(h.hpPct<=55?'mid':'')); fill.style.width=h.hpPct.toFixed(1)+'%' }
+      if(lbl) lbl.textContent=fmt(h.hp)+' / '+fmt(h.mx)+(h.fainted?'  KO':'')
+    }
+    if(xpbar && h.lvl!=null){
+      const fill=xpbar.querySelector('.hfill'), lbl=xpbar.querySelector('.hin')
+      const temPct=h.xpPct!=null
+      xpbar.className='hbar xp'+(temPct?'':' aprendendo')
+      if(fill) fill.style.width=(temPct?h.xpPct.toFixed(1):0)+'%'
+      if(lbl) lbl.textContent=temPct?('EXP '+(h.xpPct<10?h.xpPct.toFixed(1):Math.round(h.xpPct))+'%'):('EXP · '+(h.xp!=null?curto(h.xp):'—'))
+    }
+  }
+  setInterval(tickHP, 150)   // o mais rapido que vale: alem disso o limite passa a ser a taxa do `field` do jogo; tick()
 </script>
 </body>
 </html>

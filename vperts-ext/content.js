@@ -115,6 +115,14 @@
     photos: 0,        // Rare Pokemon Picture — 1 foto = 1 shiny achado na hunt
     potions: null, revives: null, rareItems: null,   // estoque real (via /game/items.json)
     hunt: null,       // { slug, key, since } de field-init
+    // HP/XP/level do LIDER em TEMPO REAL (card estilo jogo). NAO zeram na troca de hunt (o
+    // pokemon e o mesmo). HP vem do `field` (~3,5x/s); xp/level do `poke-xp` (a cada kill).
+    heroHp: null, heroMaxHp: null, heroFainted: false,
+    liderXp: null, liderLevel: null,
+    // curva de XP APRENDIDA nos level-ups: nivel -> xp cumulativo pra alcancar. O servidor nao
+    // manda "xp pro proximo" e o cliente nao tem a formula (descoberto 23/07), entao a barra
+    // aprende sozinha: ao subir de nivel, o xp daquele instante e' ~o limiar do novo nivel.
+    xpThresholds: Object.create(null),
     drops: null, lootGold: 0, lootItems: 0,   // loot da sessao valorizado pelo catalogo
     lootById: Object.create(null),            // id -> qtd; MORA no V pra sobreviver a reload
     lootBruto: 0, itensBruto: 0,              // soma crua do catalogo (antes do ajuste)
@@ -320,6 +328,11 @@
   let lastSave = 0, saveT = null;
   const flush = () => { saveT = null; lastSave = Date.now(); try { localStorage.setItem('__vperts', JSON.stringify(V)); } catch(e){} };
   const save = () => { if (saveT) return; saveT = setTimeout(flush, Math.max(0, 1000 - (Date.now() - lastSave))); };
+  // HP/XP do lider numa chave PEQUENA e SEPARADA, escrita a CADA mensagem (fora do debounce de
+  // 1s do `save`). Serializar o V inteiro 1x/s trava o renderer; este objeto tem 5 numeros, e'
+  // barato. E' o que deixa a barra de HP acompanhar a batalha (~3,5x/s) em vez de pular 1x/s.
+  const salvaHero = () => { try { localStorage.setItem('__vpHero',
+    JSON.stringify({ hp: V.heroHp, mx: V.heroMaxHp, ko: V.heroFainted, xp: V.liderXp, lvl: V.liderLevel, t: Date.now() })); } catch(e){} };
   // Reset manual (botao de lixeira do card): zera EXATAMENTE o que a troca de hunt zera,
   // sem precisar esperar o field-init. Historico (capturas, fotos, melhor) fica de pe.
   // Grava na hora - se o app fechasse antes do save de 1s, o reset se perdia.
@@ -348,12 +361,16 @@
       'brokenShiny','photos','lootGold','lootItems','capturesGold','ballsUsed','supplyGold',
       'potionsUsed','revivesUsed','fotoGold','fotosSess','fotoPreco','anTs','anSync','sessTs',
       'lootBruto','itensBruto','lootAjuste','itensAjuste','fotoPrecoTs',
+      'heroHp','heroMaxHp','liderXp','liderLevel',
       'lastKillTs','lastFieldTs','lastMsgTs','msgs'];
     num.forEach(k => { if (typeof s[k] === 'number' && isFinite(s[k])) V[k] = s[k]; });
     if (s.tot && typeof s.tot === 'object') Object.keys(V.tot).forEach(k => { if (typeof s.tot[k] === 'number') V.tot[k] = s.tot[k]; });
     if (s.hunt && s.hunt.since) V.hunt = { slug: s.hunt.slug || null, key: s.hunt.key || null, since: s.hunt.since };
     if (s.lootById && typeof s.lootById === 'object') V.lootById = Object.assign(Object.create(null), s.lootById);
     if (s.ballsUsedById) V.ballsUsedById = Object.assign(Object.create(null), s.ballsUsedById);
+    // curva de XP APRENDIDA: conhecimento acumulado — tem que sobreviver a reload/restart,
+    // senao a barra reaprende do zero toda vez. (limiares por nivel; cresce devagar, e' pequeno)
+    if (s.xpThresholds && typeof s.xpThresholds === 'object') V.xpThresholds = Object.assign(Object.create(null), s.xpThresholds);
     if (Array.isArray(s.catches)) V.catches = s.catches.slice(-200);
     if (Array.isArray(s.rareDrops)) V.rareDrops = s.rareDrops.slice(-12);
     ['an','drops','bestCatch','lastCatch','lider','huntMob','ballCounts','ballCatalog','loot','byType','usando','ancora','deriva','derivas','derivaLonga']
@@ -400,6 +417,12 @@
           break;
         }
         case 'field':
+          // HP do lider AO VIVO — a barra do card acompanha a batalha em tempo real. Antes o HP
+          // vinha do `pokes` (raro) e ficava defasado. `heroHp`/`heroMaxHp` chegam ~3,5x/s.
+          if (typeof m.heroHp === 'number') V.heroHp = m.heroHp;
+          if (typeof m.heroMaxHp === 'number') V.heroMaxHp = m.heroMaxHp;
+          if (m.fainted != null) V.heroFainted = !!m.fainted;
+          salvaHero();   // grava o HP na chave rapida a cada field (~3,5x/s) — barra fluida
           if (Array.isArray(m.mobs)) {
             P.shinyOnField = m.mobs.some(x => x && x.shiny && !x.dead);
             // campo COM mob = area de caca. Na cidade/mercado nao vem mob nenhum — e' esse
@@ -432,6 +455,21 @@
             drops();
           }
           break;
+        case 'poke-xp': {   // XP/level do LIDER em tempo real (card estilo jogo)
+          // `xp` e' CUMULATIVO. Ao SUBIR de nivel, o xp daquele instante e' ~o limiar do novo
+          // nivel — e' assim que a barra aprende a curva (o servidor nao manda "xp pro proximo"
+          // e o cliente nao tem a formula). Guarda por NIVEL; a % sai de limiar[n] e limiar[n+1].
+          if (typeof m.level === 'number' && typeof m.xp === 'number') {
+            if (V.liderLevel != null && m.level > V.liderLevel) {
+              // subiu de nivel: registra o limiar de CADA nivel cruzado (normalmente 1)
+              V.xpThresholds[m.level] = m.xp;
+            }
+            V.liderLevel = m.level;
+            V.liderXp = m.xp;
+            salvaHero();   // xp/level na chave rapida tambem
+          }
+          break;
+        }
         case 'catch-result':
           V.attempts++; V.ballsUsed++;
           if (m.ballName) P.lastBall = m.ballName;
@@ -619,8 +657,16 @@
         case 'pokes': {   // time da conta: o LIDER vira a arte do painel (sprite pela dex)
           const lista = Array.isArray(m.list) ? m.list : [];
           const lead = lista.find(p => p && p.leader) || lista.find(p => p && p.team) || null;
+          // stats/tipos/xp/power vem no roster (descoberto 23/07) — servem pro card e pro futuro
+          // painel "Avaliar IV" do dashboard. HP/level daqui e' so o valor de LOGIN; o ao vivo
+          // vem de `field`/`poke-xp` (heroHp/liderLevel), que tem prioridade na hora de exibir.
           if (lead) V.lider = { name: lead.name, speciesId: lead.speciesId, level: lead.level,
-            shiny: !!lead.shiny, hp: lead.hp, maxHp: lead.maxHp, quality: lead.quality, ivTotal: lead.ivTotal };
+            shiny: !!lead.shiny, hp: lead.hp, maxHp: lead.maxHp, quality: lead.quality, ivTotal: lead.ivTotal,
+            xp: lead.xp, power: lead.power, type1: lead.type1, type2: lead.type2, stats: lead.stats,
+            sellValue: lead.sellValue, id: lead.id };
+          // semente do xp/level ao vivo, caso o poke-xp ainda nao tenha chegado
+          if (lead && V.liderXp == null) V.liderXp = lead.xp;
+          if (lead && V.liderLevel == null) V.liderLevel = lead.level;
 
           // CAPTURAS — MEDIDO em 22/07/2026: `poke-delta` SUMIU do protocolo (a lista de
           // tipos que chega hoje e field/field-kill/catch-result/poke-xp/pokes/balls/...).

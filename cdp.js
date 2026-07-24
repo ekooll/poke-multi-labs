@@ -104,6 +104,10 @@ function _stateFn () {
           // shiny, que entra no Saldo e nao no Loot · anSync = ultima reconciliacao.
           sessTs: w.sessTs, fotoGold: w.fotoGold, fotosSess: w.fotosSess, anSync: w.anSync,
           ballsUsedById: w.ballsUsedById,   // qual bola a hunt esta REALMENTE gastando
+          // HP/XP/level do lider AO VIVO (card estilo jogo). heroHp/heroMaxHp = field (~3,5x/s);
+          // liderXp/liderLevel = poke-xp (por kill); xpThresholds = curva aprendida nos level-ups.
+          heroHp: w.heroHp, heroMaxHp: w.heroMaxHp, heroFainted: w.heroFainted,
+          liderXp: w.liderXp, liderLevel: w.liderLevel, xpThresholds: w.xpThresholds,
           lider: w.lider, huntMob: w.huntMob,   // huntMob = pokemon da hunt (icone do card)
           ballCounts: w.ballCounts, ballCatalog: w.ballCatalog, msgs: w.msgs, startTs: w.startTs,
           lastMsgTs: w.lastMsgTs, lastKillTs: w.lastKillTs, lastFieldTs: w.lastFieldTs,
@@ -320,7 +324,40 @@ function _stateFn () {
     // sem varredura do DOM a "zona" viria vazia e o subtitulo dos cards sumia — o slug da
     // hunt do WS diz a mesma coisa (e mais confiavel que o texto da tela)
     if (!zone && live && live.hunt && live.hunt.slug) zone = live.hunt.slug
-    return { ok: true, ts: Date.now(), name, level, zone, active, hp, hpMax, hunt: huntF, vivo,
+    // ---- HERO: HP/XP/level do lider AO VIVO, pro card estilo jogo ----
+    // HP: heroHp/heroMaxHp do `field` (tempo real). Sem eles (leitor/bridge antigo), cai no
+    // hp do lider (roster, defasado). Level: liderLevel (poke-xp) > lider.level (roster).
+    // XP %: so quando a curva aprendida tem o limiar do nivel ATUAL e do PROXIMO — senao null
+    // (a UI mostra o xp cru, sem chutar). E' honesto: aparece exato quando o bicho sobe 2 niveis.
+    let hero = null
+    if (live && (live.lider || live.heroHp != null || live.liderLevel != null)) {
+      const L = live.lider || {}
+      const hpNow = (live.heroHp != null) ? live.heroHp : (L.hp != null ? L.hp : null)
+      const hpMx = (live.heroMaxHp != null && live.heroMaxHp > 0) ? live.heroMaxHp : (L.maxHp || null)
+      const lvl = (live.liderLevel != null) ? live.liderLevel : (L.level != null ? L.level : null)
+      const xp = (live.liderXp != null) ? live.liderXp : (L.xp != null ? L.xp : null)
+      let xpPct = null, xpNoNivel = null, xpDoNivel = null
+      const T = live.xpThresholds
+      if (T && lvl != null && xp != null && T[lvl] != null) {
+        const base = T[lvl]; let teto = T[lvl + 1]
+        // teto ainda nao aprendido: estima pelo span consecutivo mais recente (mesma logica do
+        // loop rapido no overlay). Data-driven, vira exato quando o bicho subir de novo.
+        if (teto == null) { let span = null
+          for (let L = lvl; L > 1 && L >= lvl - 10; L--) { if (T[L] != null && T[L - 1] != null) { span = T[L] - T[L - 1]; break } }
+          if (span != null && span > 0) teto = base + span }
+        if (teto != null && teto > base) {
+          xpNoNivel = Math.max(0, xp - base); xpDoNivel = teto - base
+          xpPct = Math.max(0, Math.min(100, (xpNoNivel / xpDoNivel) * 100))
+        }
+      }
+      hero = { name: L.name || name, speciesId: L.speciesId, shiny: !!L.shiny,
+        hp: hpNow, maxHp: hpMx, hpPct: (hpNow != null && hpMx) ? Math.max(0, Math.min(100, hpNow / hpMx * 100)) : null,
+        fainted: !!live.heroFainted, level: lvl, xp,
+        xpPct, xpNoNivel, xpDoNivel,
+        type1: L.type1 || null, type2: L.type2 || null, quality: L.quality, ivTotal: L.ivTotal,
+        power: L.power, stats: L.stats || null }
+    }
+    return { ok: true, ts: Date.now(), name, level, zone, active, hp, hpMax, hunt: huntF, vivo, hero,
       balls: finalBalls, ballList, ballsTotal, ballAtiva, potions: potionsF, revives: revivesF, potionsUsed,
       cura: live ? live.cura : null, usando: live ? live.usando : null,
       rareItems: live ? live.rareItems : null, money, shinies, brokenShiny,

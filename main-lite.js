@@ -404,11 +404,13 @@ ipcMain.handle('close-account', (_e, i) => { closeSlot(i); layout(); emitState()
 ipcMain.handle('open-dashboard', () => { openDashboard(); return true; });
 
 // ---- dashboard (reaproveitado) ----
-// UMA leitura serve pra todo mundo. Os 4 overlays (4s), o dashboard (4s) e o grid de stats
+// UMA leitura serve pra todo mundo. Os overlays (1s), o dashboard (4s) e o grid de stats
 // (2,5s) chamam esse handler, e cada chamada varre TODAS as contas — dava ate 5 leituras por
 // segundo por conta dentro do renderer do jogo. Agora: resposta com menos de CACHE_MS volta
 // do cache, e chamadas simultaneas compartilham a MESMA promessa em vez de enfileirar.
-const CACHE_MS = 1500;
+// CACHE_MS baixou p/ 800: o card de HP/XP precisa acompanhar a batalha (era 1500). O leitor
+// com bridge vivo so le o localStorage (nao varre o DOM), entao 800ms e' barato.
+const CACHE_MS = 800;
 let leituraCache = null, leituraTs = 0, leituraEmVoo = null;
 
 async function lerContas () {
@@ -436,6 +438,33 @@ ipcMain.handle('read-dashboard', async () => {
     .then(r => { leituraCache = r; leituraTs = Date.now(); return r; })
     .finally(() => { leituraEmVoo = null; });
   return leituraEmVoo;
+});
+// ---- leitura LEVE do HP/XP do lider (loop rapido do card, 250ms) ----
+// O read-dashboard roda o STATE_EXPR inteiro (pesado) e e' cacheado 800ms — bom pro card todo,
+// mas lento demais pra barra de HP acompanhar a batalha. Este le SO os campos crus do lider do
+// localStorage (bem barato) com cache curto, pra o overlay atualizar so as barras rapido.
+// le a chave RAPIDA `__vpHero` (escrita a cada mensagem) pro HP/XP; o `__vperts` (1x/s) so
+// entra pra xpThresholds e o roster de fallback. E' o que torna a barra fluida.
+const HERO_EXPR = `(function(){try{
+  var H=JSON.parse(localStorage.getItem('__vpHero')||'null');
+  var V=JSON.parse(localStorage.getItem('__vperts')||'{}');var L=V.lider||{};
+  return {heroHp:(H&&H.hp!=null)?H.hp:V.heroHp, heroMaxHp:(H&&H.mx!=null)?H.mx:V.heroMaxHp,
+    heroFainted:(H?!!H.ko:!!V.heroFainted), liderXp:(H&&H.xp!=null)?H.xp:V.liderXp, liderLevel:(H&&H.lvl!=null)?H.lvl:V.liderLevel,
+    xpThresholds:V.xpThresholds, rosterHp:L.hp, rosterMaxHp:L.maxHp, rosterLevel:L.level}}catch(e){return null}})()`;
+let heroCache = null, heroTs = 0, heroVoo = null;
+async function lerHerois () {
+  const out = {};
+  for (const s of slots) {
+    try { out[s.num] = await s.view.webContents.executeJavaScript(HERO_EXPR, true); }
+    catch (e) { out[s.num] = null; }
+  }
+  return out;
+}
+ipcMain.handle('read-hero', async () => {
+  if (heroCache && (Date.now() - heroTs) < 90) return heroCache;
+  if (heroVoo) return heroVoo;
+  heroVoo = lerHerois().then(r => { heroCache = r; heroTs = Date.now(); return r; }).finally(() => { heroVoo = null; });
+  return heroVoo;
 });
 ipcMain.handle('dashboard-pin', (_e, on) => { if (dash) dash.setAlwaysOnTop(!!on); });
 ipcMain.handle('dashboard-minimize', () => { if (dash) dash.minimize(); });
