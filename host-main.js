@@ -327,11 +327,15 @@ async function publicClose (idx) {
 // ---- atalhos globais (funcionam mesmo com o foco dentro do Chrome encaixado) ----
 // Ctrl+1..4 = foca a conta pelo NUMERO (nao pelo indice) · Ctrl+0 = todas · F11 = tela cheia
 function focusByNum (n) {
-  if (!win) return
+  if (!win || busy) return   // nao troca por atalho no meio de add/close/setCount (evita sobrepor transicao)
   let target
   if (n === 0) target = -1
   else { const idx = slots.findIndex(s => s.num === n); if (idx < 0) return; target = idx }
-  withCurtain(() => { solo = target; return applyLayout() }, { inMs: 0, outMs: 110 }).then(() => pushState())
+  // depois de assentar o layout, DEVOLVE o foco de teclado a conta mostrada: sem isso a
+  // janela encaixada troca mas fica INATIVA (foreground na anterior) -> "atalho nao funciona".
+  // scheduleRefocus (debounce 130ms) tambem coalesce rajadas de Ctrl+N pro solo final.
+  withCurtain(() => { solo = target; return applyLayout() }, { inMs: 0, outMs: 110 })
+    .then(() => { pushState(); scheduleRefocus() })
 }
 function registerShortcuts () {
   try {
