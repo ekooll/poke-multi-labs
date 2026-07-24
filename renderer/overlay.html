@@ -586,18 +586,21 @@
     const mx = (raw.heroMaxHp>0)?raw.heroMaxHp:raw.rosterMaxHp
     const lvl = (raw.liderLevel!=null)?raw.liderLevel:raw.rosterLevel
     const xp = raw.liderXp
-    // XP%: exato quando conhece limiar[lvl] E limiar[lvl+1]. Enquanto o [lvl+1] nao foi
-    // aprendido (so vem quando sobe de novo), ESTIMA o teto pelo span consecutivo mais recente
-    // conhecido (a curva cresce suave). Dado observado, nao formula chutada. Vira exato sozinho.
+    // XP%: prefere o limiar APRENDIDO (T[lvl] e T[lvl+1], exato). Quando falta o [lvl+1] — que
+    // so e' aprendido ao subir de nivel, deixando buracos enormes na curva (a conta 1 so tinha
+    // 19-79 + 475) — cai na formula CUBICA medida em 24/07/2026 (auditoria XP read-only):
+    //   limiar(L) = 16.666*L^3 - 99.579*L^2 + 271.70*L + 281.8
+    // residuo <0,5% de L17 a L475, validada AO VIVO em L81 (+0,05%) e L82 (+0,04%) no Smoochum.
+    // Antes ESTIMAVA o teto pelo span recente (proximo degrau e' MAIOR) => SATURAVA em 100% antes
+    // de upar (o bug do card: jogo dizia 98% e a barra ja marcava 100%). Clampa em 99% pra nunca
+    // mentir 100% antes do leveledUp; o `poke-xp` reancora no nivel novo. Recalcula do lvl/xp crus
+    // a cada tick => trocar de pokemon lider (ex: Smoochum L81 -> Scyther L476) ja reancora sozinho.
     let xpPct=null; const T=raw.xpThresholds
-    if(T && lvl!=null && xp!=null){
-      const base=T[lvl]; let teto=T[lvl+1]
-      if(base!=null && teto==null){
-        let span=null
-        for(let L=lvl; L>1 && L>=lvl-10; L--){ if(T[L]!=null && T[L-1]!=null){ span=T[L]-T[L-1]; break } }
-        if(span!=null && span>0) teto=base+span
-      }
-      if(base!=null && teto!=null && teto>base) xpPct=Math.max(0,Math.min(100,(xp-base)/(teto-base)*100))
+    if(lvl!=null && xp!=null){
+      const cubica=(L)=>16.666*L*L*L - 99.579*L*L + 271.70*L + 281.8
+      const base=(T&&T[lvl]!=null)?T[lvl]:cubica(lvl)
+      const teto=(T&&T[lvl+1]!=null)?T[lvl+1]:cubica(lvl+1)
+      if(teto>base) xpPct=Math.max(0,Math.min(99,(xp-base)/(teto-base)*100))
     }
     return {hp,mx,hpPct:(hp!=null&&mx)?Math.max(0,Math.min(100,hp/mx*100)):null,lvl,xp,xpPct,fainted:!!raw.heroFainted}
   }
